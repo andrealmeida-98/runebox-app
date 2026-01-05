@@ -1,28 +1,28 @@
+import { Card, CardType } from "@/interfaces/card";
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface CardGridItemProps {
-  card: {
-    id: string;
-    name: string;
-    set_abv: string;
-    rarity: string;
-    price?: number;
-    quantity?: number;
-    image_url?: string;
-  };
+  card: Card;
   cardWidth?: number;
   cardHeight?: number;
   onPress?: () => void;
   hidePrice?: boolean;
+  quantity?: number;
 }
 
 export function CardGridItem({
   card,
+  quantity = 0,
   cardWidth = 160,
   cardHeight = 200,
   hidePrice = false,
   onPress,
 }: CardGridItemProps) {
+  const { price = 0, price_foil = 0 } = card;
+  const cardPrice = price ? price : price_foil;
+  const [imageLoaded, setImageLoaded] = useState(false);
+
   return (
     <Pressable
       key={card.id}
@@ -33,26 +33,45 @@ export function CardGridItem({
       <View
         style={[styles.cardImage, { width: cardWidth, height: cardHeight }]}
       >
+        {/* Placeholder image shown while loading */}
+        {!imageLoaded && card.image_url && (
+          <Image
+            source={require("@/assets/images/back-image.png")}
+            style={[
+              styles.cardPlaceholder,
+              card.card_type.toLocaleLowerCase() ===
+                CardType.BATTLEFIELD.toLocaleLowerCase() && styles.rotated,
+            ]}
+            resizeMode="contain"
+          />
+        )}
+        {/* Actual card image */}
         <Image
           source={
             card.image_url
               ? { uri: card.image_url }
-              : require("@/assets/images/riftbound-card-example.png")
+              : require("@/assets/images/back-image.png")
           }
-          style={styles.cardPlaceholder}
+          style={[
+            styles.cardPlaceholder,
+            !imageLoaded && styles.hidden,
+            card.card_type.toLocaleLowerCase() ===
+              CardType.BATTLEFIELD.toLocaleLowerCase() && styles.rotated,
+          ]}
           resizeMode="contain"
+          onLoad={() => setImageLoaded(true)}
         />
         {/* Price Badge */}
-        {card.price && !hidePrice && card.price > 0 ? (
+        {!hidePrice && cardPrice && cardPrice > 0 ? (
           <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>{`$${card.price.toFixed(2)}`}</Text>
+            <Text style={styles.priceText}>{`$${cardPrice.toFixed(2)}`}</Text>
           </View>
         ) : null}
 
         {/* Quantity Badge */}
-        {card.quantity && (
+        {quantity > 0 && (
           <View style={styles.quantityBadge}>
-            <Text style={styles.quantityText}>{card.quantity}</Text>
+            <Text style={styles.quantityText}>{quantity}</Text>
           </View>
         )}
       </View>
@@ -61,9 +80,7 @@ export function CardGridItem({
       <Text style={styles.cardName} numberOfLines={1}>
         {card.name}
       </Text>
-      <Text style={styles.cardSet}>
-        {`${card.set_abv} • ${card.rarity}`}
-      </Text>
+      <Text style={styles.cardSet}>{`${card.set_abv} • ${card.rarity}`}</Text>
     </Pressable>
   );
 }
@@ -83,6 +100,15 @@ const styles = StyleSheet.create({
   cardPlaceholder: {
     width: "100%",
     height: "100%",
+  },
+  hidden: {
+    opacity: 0,
+    position: "absolute",
+  },
+  rotated: {
+    transform: [{ rotate: "90deg" }],
+    width: "140%",
+    height: "140%",
   },
   priceBadge: {
     position: "absolute",

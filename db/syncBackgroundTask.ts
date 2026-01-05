@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as TaskManager from "expo-task-manager";
-import { db } from "./database";
 import { resetSetsTable } from "./initDb";
 import { upsertCard } from "./queries/cards";
 import { upsertSets } from "./queries/sets";
@@ -166,12 +165,11 @@ async function updateLocalDatabase(
   convertedCards: { card: Card; updatedAt: number }[]
 ): Promise<void> {
   try {
-    // Use transaction for better performance
-    await db.withTransactionAsync(async () => {
-      for (const { card, updatedAt } of convertedCards) {
-        await upsertCard(card, updatedAt);
-      }
-    });
+    // Process cards sequentially without explicit transaction wrapper
+    // Each upsertCard uses runAsync which is safe
+    for (const { card, updatedAt } of convertedCards) {
+      await upsertCard(card, updatedAt);
+    }
 
     console.log(
       `[Background Task] Successfully upserted ${convertedCards.length} cards to local DB`
@@ -200,8 +198,9 @@ async function updateLocalSetsDatabase(sets: any[]): Promise<void> {
         "⚠️ Sets table missing 'id' column. Fixing schema and retrying..."
       );
       try {
+        // First, reset the schema outside of any transaction
         await resetSetsTable();
-        // Retry the upsert after fixing the schema
+        // Then retry the upsert with the fixed schema
         await upsertSets(sets);
         console.log(
           `[Background Task] Successfully upserted ${sets.length} sets to local DB after schema fix`
@@ -315,25 +314,49 @@ export async function manualSync(): Promise<{
       return { success: true, cardsUpdated: 0, setsUpdated: 0 };
     }
 
-    // Update local database
+    // Update local database with individual try/catch for better error isolation
+    let cardsUpdated = 0;
+    let setsUpdated = 0;
+
     if (cards && cards.length > 0) {
-      await updateLocalDatabase(cards);
-    }
-    if (sets && sets.length > 0) {
-      await updateLocalSetsDatabase(sets);
+      try {
+        await updateLocalDatabase(cards);
+        cardsUpdated = cards.length;
+      } catch (cardError) {
+        console.error("❌ Error updating cards:", cardError);
+        throw new Error(
+          `Failed to update cards: ${
+            cardError instanceof Error ? cardError.message : "Unknown error"
+          }`
+        );
+      }
     }
 
-    // Save sync timestamp
+    if (sets && sets.length > 0) {
+      try {
+        await updateLocalSetsDatabase(sets);
+        setsUpdated = sets.length;
+      } catch (setError) {
+        console.error("❌ Error updating sets:", setError);
+        throw new Error(
+          `Failed to update sets: ${
+            setError instanceof Error ? setError.message : "Unknown error"
+          }`
+        );
+      }
+    }
+
+    // Save sync timestamp only after successful completion
     const now = Date.now();
     await AsyncStorage.setItem(LAST_SYNC_KEY, now.toString());
 
     console.log(
-      `✅ Manual sync completed! Updated ${cards.length} cards and ${sets.length} sets`
+      `✅ Manual sync completed! Updated ${cardsUpdated} cards and ${setsUpdated} sets`
     );
     return {
       success: true,
-      cardsUpdated: cards.length,
-      setsUpdated: sets.length,
+      cardsUpdated,
+      setsUpdated,
     };
   } catch (error) {
     console.error("❌ Error in manual sync:", error);

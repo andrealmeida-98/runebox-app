@@ -121,6 +121,11 @@ export default function HomeScreen() {
     return "#666";
   };
 
+  const source = {
+    html: `
+    "When one of your units becomes [Mighty], you may exhaust me to channel 1 rune exhausted. <i>(A unit is Mighty while it has 5+ :rb_might:.)</i>";
+    `,
+  };
   return (
     <ScrollView
       style={styles.container}
@@ -241,27 +246,6 @@ export default function HomeScreen() {
             </>
           )}
         </TouchableOpacity>
-      </View>
-
-      {/* Info Card */}
-      <View style={styles.infoCard}>
-        <View style={styles.infoCardHeader}>
-          <Ionicons name="information-circle-outline" size={24} color="#666" />
-          <Text style={styles.infoCardTitle}>About Sync</Text>
-        </View>
-        <Text style={styles.infoCardText}>
-          • App automatically syncs when opened if last sync was &gt;15 min ago
-        </Text>
-        <Text style={styles.infoCardText}>
-          • Background sync runs every 15 minutes when app is closed
-          (OS-dependent)
-        </Text>
-        <Text style={styles.infoCardText}>
-          • Pull down to refresh or tap &quot;Sync Now&quot; to manually sync
-        </Text>
-        <Text style={styles.infoCardText}>
-          • Only updated cards are fetched to save data
-        </Text>
       </View>
     </ScrollView>
   );

@@ -1,12 +1,11 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
   Image,
   PanResponder,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,11 +14,14 @@ import {
 import Carousel from "react-native-reanimated-carousel";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import CommonIcon from "@/assets/icons/common.svg";
-import EpicIcon from "@/assets/icons/epic.svg";
-import RareIcon from "@/assets/icons/rare.svg";
-import ShowcaseIcon from "@/assets/icons/showcase.svg";
-import UncommonIcon from "@/assets/icons/uncommon.svg";
+import {
+  CommonIcon,
+  EpicIcon,
+  RareIcon,
+  ShowcaseIcon,
+  UncommonIcon,
+} from "@/assets/icons";
+import { getHeaderWithMenu } from "@/constants/header-options";
 import { GLOBAL_CARDS, USER_COLLECTION_ENTRIES } from "@/dummy-data";
 import { Card, CardRarity } from "@/interfaces/card";
 
@@ -141,28 +143,7 @@ export default function CardDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: activeCard.name,
-          headerStyle: {
-            backgroundColor: "#1e293b",
-          },
-          headerTintColor: "#ffffff",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
-              <FontAwesome name="arrow-left" size={20} color="#ffffff" />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable style={{ padding: 8, marginRight: 8 }}>
-              <FontAwesome name="ellipsis-v" size={24} color="#ffffff" />
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={getHeaderWithMenu(activeCard.name)} />
       <SafeAreaView style={styles.container} edges={["bottom"]}>
         {/* Carousel */}
         <Animated.View

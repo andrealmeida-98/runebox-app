@@ -3,11 +3,13 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import CommonIcon from "@/assets/icons/common.svg";
-import EpicIcon from "@/assets/icons/epic.svg";
-import RareIcon from "@/assets/icons/rare.svg";
-import ShowcaseIcon from "@/assets/icons/showcase.svg";
-import UncommonIcon from "@/assets/icons/uncommon.svg";
+import {
+  CommonIcon,
+  EpicIcon,
+  RareIcon,
+  ShowcaseIcon,
+  UncommonIcon,
+} from "@/assets/icons";
 import { GLOBAL_CARDS, USER_DECK_ENTRIES, USER_DECKS } from "@/dummy-data";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
 

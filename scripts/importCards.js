@@ -13,7 +13,10 @@ export function parseCardsFromJson(path) {
 
   return data.map((row) => {
     const c = rowToObject(names, row);
-    if (c.id === "OGN-288") console.log(c);
+    if (c.name.toLowerCase().includes("bullet")) {
+      console.log("----------------->", c);
+    }
+
     return {
       id: c.id,
       name: c.name,
@@ -23,10 +26,12 @@ export function parseCardsFromJson(path) {
       ability: c.effect ?? null,
       card_type: c.type ?? null,
       rarity: c.rarity?.toLowerCase() ?? null,
+      domain: Array.isArray(c.color) ? c.color : [],
       energy: c.cost ? Number(c.cost) : null,
       might: c.might ? Number(c.might) : null,
       tags: Array.isArray(c.tags) ? c.tags : [],
-      price: c.price ? Number(c.price) : null,
+      price: c.price ?? null,
+      price_foil: c.foilPrice ?? null,
       price_change: c.delta7dPrice ? Number(c.delta7dPrice) : null,
       updated_at: new Date().toISOString(),
     };

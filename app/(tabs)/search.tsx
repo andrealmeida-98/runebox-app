@@ -1,394 +1,356 @@
-import { CardGridItem } from "@/components/card-grid-item";
+import { CardFlatList } from "@/components/card-flat-list";
+import { CardPreviewOverlay } from "@/components/card-preview-overlay";
+import { Filter, SearchInput } from "@/components/search-input";
 import {
-  getCards,
-  getCardsBySetAbv,
-  getCardsWithMostVariation,
+  CardFilters,
+  getCardsBySetOrderedWithPagination,
 } from "@/db/queries/cards";
 import { getSets } from "@/db/queries/sets";
-import { Card } from "@/interfaces/card";
+import { Card, CardDomain, CardRarity, CardType } from "@/interfaces/card";
 import { Set } from "@/interfaces/set";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Button } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function CardSearch() {
+export default function AllCards() {
+  const [activeTab, setActiveTab] = useState<"cards" | "expansions">("cards");
   const [cards, setCards] = useState<Card[]>([]);
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [trendingCards, setTrendingCards] = useState<Card[]>([]);
-  const [recentSets, setRecentSets] = useState<Set[]>([]);
-  const [setCardsMap, setSetCardsMap] = useState<Record<string, Card[]>>({});
-  const [selectedCategory, setSelectedCategory] = useState("Trending");
+  const [activeFilters, setActiveFilters] = useState<Filter[]>([]);
+  const [sets, setSets] = useState<Set[]>([]);
 
-  const categories = ["Trending", "New Sets", "Full Art", "Promo"];
-
-  // Fetch trending cards (top 3 with highest price gains)
-  const fetchTrendingCards = useCallback(async () => {
-    try {
-      const response = await getCardsWithMostVariation(true, 3);
-      setTrendingCards(response);
-    } catch (error) {
-      console.error("Error fetching trending cards:", error);
-    }
+  // Fetch sets on mount
+  useEffect(() => {
+    getSets().then(setSets).catch(console.error);
   }, []);
 
-  // Fetch recent sets
-  const fetchRecentSets = useCallback(async () => {
-    try {
-      const response = await getSets();
-      // Get only the last 2 sets
-      const lastTwoSets = response.slice(-2);
-      setRecentSets(lastTwoSets);
+  // Card preview overlay state
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewCards, setPreviewCards] = useState<Card[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
-      // Fetch cards for each set
-      const cardsMap: Record<string, Card[]> = {};
-      for (const set of lastTwoSets) {
-        try {
-          const cards = await getCardsBySetAbv(set.setAbv, 5);
-          // Sort by price descending and take top 5
-          const sortedCards = cards
-            .filter((card) => card.price && card.price > 0)
-            .sort((a, b) => (b.price || 0) - (a.price || 0))
-            .slice(0, 5);
-          cardsMap[set.setAbv] = sortedCards;
-        } catch (error) {
-          console.error(`Error fetching cards for set ${set.setAbv}:`, error);
-          cardsMap[set.setAbv] = [];
-        }
-      }
-      setSetCardsMap(cardsMap);
-    } catch (error) {
-      console.error("Error fetching recent sets:", error);
+  // Convert filters array to CardFilters object
+  const getActiveFiltersObject = useCallback((): CardFilters => {
+    const filters: CardFilters = {};
+
+    const rarityFilter = activeFilters.find((f) => f.name === "rarity");
+    if (rarityFilter?.value) {
+      filters.rarity = rarityFilter.value;
     }
-  }, []);
 
-  // Fetch cards
+    const typeFilter = activeFilters.find((f) => f.name === "cardType");
+    if (typeFilter?.value) {
+      filters.cardType = typeFilter.value;
+    }
+
+    const setFilter = activeFilters.find((f) => f.name === "setAbv");
+    if (setFilter?.value) {
+      filters.setAbv = setFilter.value;
+    }
+
+    const energyFilter = activeFilters.find((f) => f.name === "energy");
+    if (energyFilter?.value && energyFilter.value > 0) {
+      filters.energy = {
+        value: energyFilter.value,
+        operator: energyFilter.operator || ">=",
+      };
+    }
+
+    const mightFilter = activeFilters.find((f) => f.name === "might");
+    if (mightFilter?.value && mightFilter.value > 0) {
+      filters.might = {
+        value: mightFilter.value,
+        operator: mightFilter.operator || ">=",
+      };
+    }
+
+    const domainFilter = activeFilters.find((f) => f.name === "domain");
+    if (
+      domainFilter?.value &&
+      Array.isArray(domainFilter.value) &&
+      domainFilter.value.length > 0
+    ) {
+      filters.domain = domainFilter.value;
+      filters.domainOperator = domainFilter.domainOperator || "OR";
+    }
+
+    return filters;
+  }, [activeFilters]);
+
+  // Fetch cards from local database with pagination
   const fetchCards = useCallback(
-    async (pageNum: number, searchQuery: string, isRefresh = false) => {
-      if (pageNum === 1 && !isRefresh) {
-        setLoading(true);
-      } else if (!isRefresh) {
-        setLoadingMore(true);
-      }
-
+    async (page: number, query: string = "") => {
       try {
-        const data = await getCards(searchQuery, pageNum);
-
-        if (pageNum === 1) {
-          setCards(data);
+        if (page === 1) {
+          setLoading(true);
         } else {
-          setCards((prev) => [...prev, ...data]);
+          setLoadingMore(true);
         }
 
-        // Se retornar menos de 40 items, não há mais páginas
-        setHasMore(data.length === 40);
+        const filters = getActiveFiltersObject();
+        const result = (await getCardsBySetOrderedWithPagination(
+          query || undefined,
+          page,
+          Object.keys(filters).length > 0 ? filters : undefined
+        )) as Card[];
+
+        if (page === 1) {
+          setCards(result);
+        } else {
+          setCards((prev) => [...prev, ...result]);
+        }
+
+        // If we got less than 20 cards (PAGE_SIZE), we've reached the end
+        setHasMore(result.length === 20);
       } catch (error) {
         console.error("Error fetching cards:", error);
       } finally {
         setLoading(false);
         setLoadingMore(false);
-        setRefreshing(false);
       }
     },
-    []
+    [getActiveFiltersObject]
   );
 
-  // Load initial data
+  // Initial load and reload when filters change
   useEffect(() => {
-    fetchTrendingCards();
-    fetchRecentSets();
-  }, [fetchTrendingCards, fetchRecentSets]);
-
-  // Search handler (reset to page 1)
-  const handleSearch = useCallback(
-    (text: string) => {
-      setQuery(text);
-      setPage(1);
-      setHasMore(true);
-      fetchCards(1, text);
-    },
-    [fetchCards]
-  );
-
-  // Load more (infinite scroll)
-  const handleLoadMore = useCallback(() => {
-    if (!loadingMore && hasMore && !loading) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchCards(nextPage, query);
-    }
-  }, [loadingMore, hasMore, loading, page, query, fetchCards]);
-
-  // Pull to refresh
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setPage(1);
+    setCurrentPage(1);
+    setCards([]);
     setHasMore(true);
-    fetchCards(1, query, true);
-    fetchTrendingCards();
-    fetchRecentSets();
-  }, [query, fetchCards, fetchTrendingCards, fetchRecentSets]);
+    fetchCards(1, searchQuery);
+  }, [searchQuery, activeFilters]);
 
-  // Render trending card
-  const renderTrendingCard = ({ item }: { item: Card }) => (
-    <TouchableOpacity
-      style={styles.trendingCard}
-      onPress={() => router.push(`/card-detail?id=${item.id}`)}
-    >
-      <CardGridItem card={item} hidePrice />
+  // Load more cards when reaching the bottom
+  const loadMoreCards = useCallback(() => {
+    if (!loadingMore && !loading && hasMore) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      fetchCards(nextPage, searchQuery);
+    }
+  }, [currentPage, hasMore, loadingMore, loading, searchQuery, fetchCards]);
 
-      <View style={styles.trendingInfo}>
-        <Text style={styles.trendingPrice}>${item.price}</Text>
-        {item.price_change && item.price_change > 0 && (
-          <View style={styles.hotBadge}>
-            <Text style={styles.hotText}>HOT</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
+  // Card preview handlers
+  const handleCardPreview = useCallback(
+    (card: Card) => {
+      const cardIndex = cards.findIndex((c) => c.id === card.id);
+      setPreviewCards(cards);
+      setPreviewIndex(cardIndex >= 0 ? cardIndex : 0);
+      setPreviewVisible(true);
+    },
+    [cards]
   );
 
-  // Render each search result card
-  const renderCard = ({ item }: { item: Card }) => (
-    <CardGridItem
-      card={item}
-      cardHeight={300}
-      cardWidth={100}
-      onPress={() => {}}
-    />
-  );
+  const handleClosePreview = useCallback(() => {
+    setPreviewVisible(false);
+  }, []);
 
-  // Footer with loading indicator
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <View style={styles.footer}>
-        <ActivityIndicator size="small" color="#666" />
-      </View>
-    );
-  };
+  // Helper to capitalize first letter
+  const capitalize = (str: string) =>
+    str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 
-  // Render main content when not searching
-  const renderMainContent = () => (
-    <ScrollView
-      style={styles.mainContent}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-      }
-    >
-      {/* Trending Now Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name="trending-up" size={20} color="#22c55e" />
-          <Text style={styles.sectionTitle}>Trending Now</Text>
-          <TouchableOpacity onPress={() => router.push("/all-cards")}>
-            <Text style={styles.viewAll}>View All</Text>
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={trendingCards}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          renderItem={renderTrendingCard}
-          contentContainerStyle={styles.horizontalList}
-        />
-      </View>
-
-      {/* Recent Sets Section */}
-      {recentSets.map((set, setIndex) => {
-        const cards = setCardsMap[set.setAbv] || [];
-        // Get top 5 cards by price
-        const topCards = cards.slice(0, 5);
-
-        return (
-          <View key={set.setAbv} style={styles.section}>
-            <View style={styles.setHeader}>
-              <Text style={styles.setTitle}>{set.setName}</Text>
-            </View>
-            <View style={styles.setCardsContainer}>
-              {/* First Row - 3 cards */}
-              <View style={styles.setCardsRow}>
-                {topCards.slice(0, 3).map((card) => (
-                  <TouchableOpacity
-                    key={card.id}
-                    style={styles.setCard}
-                    onPress={() => router.push(`/card-detail?id=${card.id}`)}
-                  >
-                    <Image
-                      source={{ uri: card.image_url }}
-                      style={styles.setImage}
-                    />
-                    <Text style={styles.setCardName} numberOfLines={1}>
-                      {card.name}
-                    </Text>
-                    <Text style={styles.setCardRarity}>{card.set_abv}</Text>
-                    <Text style={styles.setCardPrice}>${card.price}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {/* Second Row - 2 cards + 1 "View All" */}
-              <View style={styles.setCardsRow}>
-                {topCards.slice(3, 5).map((card) => (
-                  <TouchableOpacity
-                    key={card.id}
-                    style={styles.setCard}
-                    onPress={() => router.push(`/card-detail?id=${card.id}`)}
-                  >
-                    <Image
-                      source={{ uri: card.image_url }}
-                      style={styles.setImage}
-                    />
-                    <Text style={styles.setCardName} numberOfLines={1}>
-                      {card.name}
-                    </Text>
-                    <Text style={styles.setCardRarity}>{card.set_abv}</Text>
-                    <Text style={styles.setCardPrice}>${card.price}</Text>
-                  </TouchableOpacity>
-                ))}
-                {/* View All placeholder */}
-                <TouchableOpacity
-                  style={styles.setCard}
-                  onPress={() => router.push(`/collection-detail`)}
-                >
-                  <View style={styles.viewAllCard}>
-                    <Ionicons name="arrow-forward" size={24} color="#fff" />
-                    <Text style={styles.viewAllText}>View Set</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Search</Text>
-        <TouchableOpacity>
-          <Ionicons name="qr-code-outline" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
+  // Render search bar and tabs
+  const renderSearchBar = () => (
+    <>
       {/* Search Input */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#666"
-            style={styles.searchIcon}
+          <SearchInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search cards..."
+            filters={[
+              {
+                name: "rarity",
+                type: "select",
+                value:
+                  activeFilters.find((f) => f.name === "rarity")?.value || "",
+                label: "Rarity",
+                options: [
+                  capitalize(CardRarity.COMMON),
+                  capitalize(CardRarity.UNCOMMON),
+                  capitalize(CardRarity.RARE),
+                  capitalize(CardRarity.EPIC),
+                  capitalize(CardRarity.SHOWCASE),
+                ],
+              },
+              {
+                name: "cardType",
+                type: "select",
+                value:
+                  activeFilters.find((f) => f.name === "cardType")?.value || "",
+                label: "Card Type",
+                options: Object.values(CardType),
+              },
+              {
+                name: "setAbv",
+                type: "select",
+                value:
+                  activeFilters.find((f) => f.name === "setAbv")?.value || "",
+                label: "Set",
+                options: sets.map((s) => s.setName),
+              },
+              {
+                name: "energy",
+                type: "comparison",
+                value:
+                  activeFilters.find((f) => f.name === "energy")?.value || 0,
+                operator:
+                  activeFilters.find((f) => f.name === "energy")?.operator ||
+                  ">=",
+                label: "Cost (Energy)",
+              },
+              {
+                name: "might",
+                type: "comparison",
+                value:
+                  activeFilters.find((f) => f.name === "might")?.value || 0,
+                operator:
+                  activeFilters.find((f) => f.name === "might")?.operator ||
+                  ">=",
+                label: "Might",
+              },
+              {
+                name: "domain",
+                type: "domain",
+                value:
+                  activeFilters.find((f) => f.name === "domain")?.value || [],
+                label: "Domain",
+                options: Object.values(CardDomain),
+                images: {
+                  [CardDomain.ORDER]: require("@/assets/icons/order.webp"),
+                  [CardDomain.CALM]: require("@/assets/icons/calm.webp"),
+                  [CardDomain.CHAOS]: require("@/assets/icons/chaos.webp"),
+                  [CardDomain.MIND]: require("@/assets/icons/mind.webp"),
+                  [CardDomain.BODY]: require("@/assets/icons/body.webp"),
+                },
+              },
+            ]}
+            onFiltersChange={(updatedFilters) => {
+              setActiveFilters(updatedFilters);
+            }}
           />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Card name, set, or #id"
-            placeholderTextColor="#666"
-            value={query}
-            onChangeText={handleSearch}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
         </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="options" size={20} color="#666" />
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "cards" && styles.activeTab]}
+          onPress={() => setActiveTab("cards")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "cards" && styles.activeTabText,
+            ]}
+          >
+            Cards
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "expansions" && styles.activeTab]}
+          onPress={() => setActiveTab("expansions")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "expansions" && styles.activeTabText,
+            ]}
+          >
+            Expansions
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Category Buttons */}
-      <View style={styles.categoryContainer}>
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category}
-            style={[
-              styles.categoryButton,
-              selectedCategory === category && styles.selectedCategoryButton,
-            ]}
-            onPress={() => setSelectedCategory(category)}
-          >
-            <Text
-              style={[
-                styles.categoryText,
-                selectedCategory === category && styles.selectedCategoryText,
-              ]}
-            >
-              {category}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* Results count */}
+      {activeTab === "cards" && !loading && (
+        <View style={styles.resultsContainer}>
+          <Text style={styles.resultsText}>
+            {`${cards.length} ${cards.length === 1 ? "card" : "cards"} found${
+              hasMore ? "+" : ""
+            }`}
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Search</Text>
       </View>
 
-      {/* Content */}
-      {query ? (
-        // Show search results
-        loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#333" />
-          </View>
-        ) : (
-          <FlatList
-            data={cards}
-            keyExtractor={(item) => item.id}
-            renderItem={renderCard}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.5}
-            ListFooterComponent={renderFooter}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No cards found</Text>
-            }
-          />
-        )
+      <Button onPress={() => console.log(activeFilters)}>SEE FILTER</Button>
+      {renderSearchBar()}
+
+      {activeTab === "cards" ? (
+        <CardFlatList
+          cards={cards}
+          loading={loading}
+          loadingMore={loadingMore}
+          onEndReached={loadMoreCards}
+          onCardPress={handleCardPreview}
+          numColumns={3}
+          emptyMessage="No cards found"
+          emptySubtext="Try adjusting your search or filters"
+        />
       ) : (
-        // Show main content
-        renderMainContent()
+        <View style={styles.centered}>
+          <Ionicons name="albums-outline" size={48} color="#666" />
+          <Text style={styles.comingSoonText}>Coming Soon</Text>
+          <Text style={styles.comingSoonSubtext}>
+            Expansion browsing will be available soon
+          </Text>
+        </View>
       )}
-    </View>
+
+      {/* Card Preview Overlay */}
+      <CardPreviewOverlay
+        visible={previewVisible}
+        cards={previewCards}
+        initialIndex={previewIndex}
+        onClose={handleClosePreview}
+        singleCardMode={cards.length > 50} // Enable single card mode for large lists
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a2332",
+    backgroundColor: "#0f172a",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: "#1a2332",
+    paddingHorizontal: 24,
+    paddingTop: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
+    fontWeight: "800",
+    color: "#ffffff",
   },
   searchContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 12,
+    marginTop: 24,
   },
   searchInputContainer: {
     flex: 1,
@@ -408,169 +370,55 @@ const styles = StyleSheet.create({
     color: "#fff",
     paddingVertical: 12,
   },
-  filterButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
-    padding: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryContainer: {
+  tabContainer: {
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 8,
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  selectedCategoryButton: {
-    backgroundColor: "#22c55e",
-  },
-  categoryText: {
-    color: "#888",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  selectedCategoryText: {
-    color: "#fff",
-  },
-  mainContent: {
-    flex: 1,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 20,
     paddingBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-    marginLeft: 8,
-    flex: 1,
-  },
-  viewAll: {
-    color: "#22c55e",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  horizontalList: {
-    paddingLeft: 20,
-  },
-  trendingCard: {
-    width: 160,
-    marginRight: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderRadius: 12,
-    padding: 12,
-    position: "relative",
-  },
-  trendingInfo: {
-    marginTop: 8,
-  },
-  trendingPrice: {
-    color: "#22c55e",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  hotBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "#ff4444",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  hotText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  setHeader: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  setTitle: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  setCardsContainer: {
-    paddingHorizontal: 20,
-  },
-  setCardsRow: {
-    flexDirection: "row",
-    marginBottom: 16,
     gap: 12,
   },
-  setCard: {
+  tab: {
     flex: 1,
-    maxWidth: "31%",
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
   },
-  setImage: {
-    width: "100%",
-    aspectRatio: 0.75,
-    borderRadius: 8,
-    backgroundColor: "#333",
-    marginBottom: 8,
+  activeTab: {
+    backgroundColor: "#22c55e",
   },
-  setCardName: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-  setCardRarity: {
+  tabText: {
     color: "#888",
-    fontSize: 10,
-    marginBottom: 4,
-  },
-  setCardPrice: {
-    color: "#22c55e",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
   },
-  viewAllCard: {
-    width: "100%",
-    aspectRatio: 0.75,
-    backgroundColor: "rgba(34, 197, 94, 0.8)",
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: "#22c55e",
-    borderStyle: "dashed",
-  },
-  viewAllText: {
+  activeTabText: {
     color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
   },
-  footer: {
-    paddingVertical: 20,
-    alignItems: "center",
+  resultsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  resultsText: {
+    color: "#888",
+    fontSize: 14,
   },
   centered: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 40,
   },
-  emptyText: {
+  comingSoonText: {
     textAlign: "center",
-    marginTop: 40,
-    fontSize: 16,
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: "600",
     color: "#888",
+  },
+  comingSoonSubtext: {
+    textAlign: "center",
+    marginTop: 8,
+    fontSize: 14,
+    color: "#666",
   },
 });

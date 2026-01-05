@@ -50,9 +50,9 @@ export async function upsertSet(set: any) {
 }
 
 export async function upsertSets(sets: any[]) {
-  return db.withTransactionAsync(async () => {
-    for (const set of sets) {
-      await upsertSet(set);
-    }
-  });
+  // Process sets sequentially without transaction wrapper
+  // This prevents nested transaction issues during sync
+  for (const set of sets) {
+    await upsertSet(set);
+  }
 }

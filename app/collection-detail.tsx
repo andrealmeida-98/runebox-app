@@ -7,13 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomDrawer } from "@/components/bottom-drawer";
 import { CardGridItem } from "@/components/card-grid-item";
+import { SearchInput } from "@/components/search-input";
+import { getHeaderWithMenu } from "@/constants/header-options";
 import { GLOBAL_CARDS, USER_COLLECTION_ENTRIES } from "@/dummy-data";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
 
@@ -125,23 +126,7 @@ export default function CollectionDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: collectionName,
-          headerStyle: {
-            backgroundColor: "#1e293b",
-          },
-          headerTintColor: "#ffffff",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
-          headerRight: () => (
-            <Pressable style={{ padding: 8, marginRight: 8 }}>
-              <FontAwesome name="ellipsis-v" size={24} color="#ffffff" />
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={getHeaderWithMenu(collectionName)} />
       <SafeAreaView style={styles.container} edges={[]}>
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -151,10 +136,9 @@ export default function CollectionDetailScreen() {
             color="#64748b"
             style={styles.searchIcon}
           />
-          <TextInput
+          <SearchInput
             style={styles.searchInput}
             placeholder="Search cards..."
-            placeholderTextColor="#64748b"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />

@@ -1,5 +1,6 @@
 {
   "name": "runebox",
+  "type": "module",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -9,7 +10,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "sync:cards": "node scripts/syncCards.js",
+    "sync:cards": "node scripts/update-supabase-cards.js",
     "api": "tsx api/src/index.ts",
     "api:dev": "tsx watch api/src/index.ts"
   },
@@ -54,6 +55,7 @@
     "react-native-paper": "^5.14.5",
     "react-native-reanimated": "~4.1.1",
     "react-native-reanimated-carousel": "^4.0.3",
+    "react-native-render-html": "^6.3.4",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "^15.15.1",
@@ -66,6 +68,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/react": "~19.1.0",
+    "dotenv": "^16.6.1",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "react-native-svg-transformer": "^1.5.2",

@@ -19,7 +19,9 @@ interface BottomDrawerProps {
   title: string;
   children: ReactNode;
   maxHeight?: string;
+  fullHeight?: boolean;
   headerRight?: ReactNode;
+  stickyFooter?: ReactNode;
 }
 
 export function BottomDrawer({
@@ -28,7 +30,9 @@ export function BottomDrawer({
   title,
   children,
   maxHeight = "75%",
+  fullHeight = false,
   headerRight,
+  stickyFooter,
 }: BottomDrawerProps) {
   // Independent animations
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -150,7 +154,10 @@ export function BottomDrawer({
         <Animated.View
           style={[
             styles.drawer,
-            { maxHeight: maxHeight as any },
+            {
+              maxHeight: (fullHeight ? "90%" : maxHeight) as any,
+              minHeight: fullHeight ? "90%" : "50%",
+            },
             {
               transform: [{ translateY: drawerTranslateY }],
               marginBottom: Platform.OS === "android" ? keyboardHeight : 0, // Push drawer up only on Android
@@ -182,6 +189,11 @@ export function BottomDrawer({
             >
               {children}
             </ScrollView>
+
+            {/* Sticky Footer */}
+            {stickyFooter && (
+              <View style={styles.stickyFooter}>{stickyFooter}</View>
+            )}
           </SafeAreaView>
         </Animated.View>
       </View>
@@ -249,5 +261,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  stickyFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: "#1E293B",
   },
 });

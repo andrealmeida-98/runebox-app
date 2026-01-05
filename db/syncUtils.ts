@@ -1,4 +1,4 @@
-import { Card } from "@/interfaces/card";
+import { Card, CardDomain } from "@/interfaces/card";
 
 /**
  * Convert Supabase card data to local Card interface format
@@ -22,8 +22,25 @@ export function convertSupabaseCardToLocal(supabaseCard: any): {
     }
   }
 
+  // Handle domain: Supabase returns TEXT[] array, convert to CardDomain[] if needed
+  let domain: CardDomain[] | undefined = undefined;
+  if (Array.isArray(supabaseCard.domain)) {
+    domain = supabaseCard.domain.length > 0 ? supabaseCard.domain : undefined;
+  } else if (typeof supabaseCard.domain === "string") {
+    try {
+      // Try parsing if it's a JSON string
+      const parsed = JSON.parse(supabaseCard.domain);
+      domain = Array.isArray(parsed) && parsed.length > 0 ? parsed : undefined;
+    } catch {
+      // If parsing fails, treat as undefined
+      domain = undefined;
+    }
+  }
+
   // Handle price: Supabase uses numeric (can be null), local expects number (defaults to 0)
   const price = supabaseCard.price != null ? Number(supabaseCard.price) : 0;
+  const priceFoil =
+    supabaseCard.price_foil != null ? Number(supabaseCard.price_foil) : 0;
   const priceChange =
     supabaseCard.price_change != null
       ? Number(supabaseCard.price_change)
@@ -42,13 +59,15 @@ export function convertSupabaseCardToLocal(supabaseCard: any): {
     name: String(supabaseCard.name),
     card_type: String(supabaseCard.card_type) as Card["card_type"],
     rarity: String(supabaseCard.rarity) as Card["rarity"],
-    domain: supabaseCard.domain || undefined,
-    energy: supabaseCard.energy != null ? Number(supabaseCard.energy) : undefined,
+    domain: domain,
+    energy:
+      supabaseCard.energy != null ? Number(supabaseCard.energy) : undefined,
     might: supabaseCard.might != null ? Number(supabaseCard.might) : undefined,
     power: supabaseCard.power != null ? Number(supabaseCard.power) : undefined,
     tags: tags,
     ability: supabaseCard.ability || undefined,
     price: price,
+    price_foil: priceFoil,
     price_change: priceChange,
   };
 
@@ -109,4 +128,3 @@ export function convertSupabaseTimestampToLocal(
 
   return Date.now();
 }
-

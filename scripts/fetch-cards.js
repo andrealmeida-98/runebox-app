@@ -3,7 +3,7 @@ const https = require("https");
 
 const url =
   "https://api.dotgg.gg/cgfw/getcards?game=riftbound&mode=indexed&cache=3275";
-const outputFile = "../data/cards.json";
+const outputFile = "cards.json";
 
 https
   .get(url, (res) => {

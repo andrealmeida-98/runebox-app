@@ -31,14 +31,23 @@ export interface Card {
   name: string;
   card_type: CardType;
   rarity: CardRarity;
-  domain?: string;
+  domain?: CardDomain[];
   energy?: number;
   might?: number;
   power?: number;
   tags: string[];
   ability?: string;
   price?: number; // Optional - some cards may not have a price yet
+  price_foil?: number; // Optional - foil price
   price_change?: number; // Percentage change since last week
+}
+
+export enum CardDomain {
+  ORDER = "Order",
+  CALM = "Calm",
+  CHAOS = "Chaos",
+  MIND = "Mind",
+  BODY = "Body",
 }
 
 export enum CardType {

@@ -42,6 +42,7 @@ export async function initDb() {
       ability TEXT,
 
       price REAL NOT NULL DEFAULT 0,
+      price_foil REAL NOT NULL DEFAULT 0,
       price_change REAL,
 
       updated_at INTEGER
@@ -188,19 +189,24 @@ export async function resetSetsTable() {
   try {
     console.log("🔄 Resetting sets table...");
 
-    await db.execAsync(`
-      DROP TABLE IF EXISTS sets;
-      
+    // Use individual runAsync calls instead of execAsync to avoid transaction issues
+    await db.runAsync(`DROP TABLE IF EXISTS sets`);
+
+    await db.runAsync(`
       CREATE TABLE sets (
         id TEXT PRIMARY KEY,
         set_name TEXT NOT NULL,
         set_abv TEXT NOT NULL,
         created_at INTEGER
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_sets_name ON sets(set_name);
-      CREATE INDEX IF NOT EXISTS idx_sets_abv ON sets(set_abv);
+      )
     `);
+
+    await db.runAsync(
+      `CREATE INDEX IF NOT EXISTS idx_sets_name ON sets(set_name)`
+    );
+    await db.runAsync(
+      `CREATE INDEX IF NOT EXISTS idx_sets_abv ON sets(set_abv)`
+    );
 
     console.log("✅ Sets table reset successfully!");
   } catch (error) {
