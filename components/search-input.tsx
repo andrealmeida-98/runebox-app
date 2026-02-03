@@ -32,8 +32,10 @@ export interface Filter {
   label: string; // Display label
 }
 
-interface SearchInputProps
-  extends Omit<TextInputProps, "value" | "onChangeText"> {
+interface SearchInputProps extends Omit<
+  TextInputProps,
+  "value" | "onChangeText"
+> {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
@@ -79,15 +81,22 @@ export const SearchInput = (props: SearchInputProps) => {
         filter.type === "boolean"
           ? false
           : filter.type === "number" ||
-            filter.type === "range" ||
-            filter.type === "comparison"
-          ? 0
-          : filter.type === "domain"
-          ? []
-          : "",
+              filter.type === "range" ||
+              filter.type === "comparison"
+            ? 0
+            : filter.type === "domain"
+              ? []
+              : "",
       operator: filter.type === "comparison" ? ">=" : filter.operator,
+      domainOperator: filter.type === "domain" ? "OR" : filter.domainOperator,
     }));
     setLocalFilters(resetFilters);
+
+    // Apply the reset filters automatically
+    if (onFiltersChange) {
+      onFiltersChange(resetFilters);
+    }
+    setIsDrawerVisible(false);
   };
 
   const hasActiveFilters = localFilters.some((filter) => {
@@ -362,35 +371,40 @@ export const SearchInput = (props: SearchInputProps) => {
 
   return (
     <>
-      <View style={styles.container}>
-        <Ionicons name="search" size={20} color="#94a3b8" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={placeholder}
-          placeholderTextColor="#64748b"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          {...restProps}
-        />
-        {filters.length > 0 && (
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setIsDrawerVisible(true)}
-          >
-            <Ionicons
-              name={hasActiveFilters ? "funnel" : "funnel-outline"}
-              size={20}
-              color={hasActiveFilters ? "#3b82f6" : "#94a3b8"}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <View style={styles.container}>
+            <Ionicons name="search" size={20} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={placeholder}
+              placeholderTextColor="#64748b"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              {...restProps}
             />
-            {activeFilterCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
+            {filters.length > 0 && (
+              <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setIsDrawerVisible(true)}
+              >
+                <Ionicons
+                  name={hasActiveFilters ? "funnel" : "funnel-outline"}
+                  size={20}
+                  color={hasActiveFilters ? "#3b82f6" : "#94a3b8"}
+                />
+                {activeFilterCount > 0 && (
+                  <View style={styles.filterBadge}>
+                    <Text style={styles.filterBadgeText}>
+                      {activeFilterCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-        )}
+          </View>
+        </View>
       </View>
-
       <BottomDrawer
         visible={isDrawerVisible}
         onClose={() => setIsDrawerVisible(false)}
@@ -476,6 +490,21 @@ export const SearchInput = (props: SearchInputProps) => {
 };
 
 const styles = StyleSheet.create({
+  searchContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
   container: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,14 +1,20 @@
 import { BottomDrawer } from "@/components/bottom-drawer";
-import { createCollection, getAllCollections } from "@/db/queries/collection";
+import { Button } from "@/components/button";
+import { useTheme } from "@/contexts/theme-context";
+import {
+  createCollection,
+  getAllCollectionsWithStats,
+} from "@/db/queries/collection";
 import { useUserId } from "@/hooks/use-user-id";
 import {
   CardCollection,
   CollectionColor,
   CollectionIcon,
 } from "@/interfaces/card";
+import { getThemeColors } from "@/utils/theme-utils";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -20,6 +26,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CollectionScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const { userId } = useUserId();
   const [searchQuery, setSearchQuery] = useState("");
@@ -27,49 +34,60 @@ export default function CollectionScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<CollectionIcon>(
-    CollectionIcon.STAR
+    CollectionIcon.STAR,
   );
   const [selectedColor, setSelectedColor] = useState<CollectionColor>(
-    CollectionColor.BLUE
+    CollectionColor.BLUE,
   );
   const [showSort, setShowSort] = useState(false);
   const [selectedSort, setSelectedSort] = useState<string>("name-asc");
 
-  const handleCreateCollection = () => {
+  const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) return;
 
-    const newCollection: CardCollection = {
-      id: Date.now().toString(),
-      name: newCollectionName.trim(),
-      icon: selectedIcon,
-      color: selectedColor,
-      user_id: userId || "unknown",
-      cardCount: 0,
-      totalValue: 0,
-    };
+    try {
+      await createCollection({
+        user_id: userId || "unknown",
+        name: newCollectionName.trim(),
+        color: selectedColor,
+        icon: selectedIcon,
+      });
 
-    createCollection({
-      user_id: newCollection.user_id,
-      name: newCollection.name,
-      color: newCollection.color,
-      icon: newCollection.icon,
-    }).catch(console.error);
+      // Reload collections
+      await loadCollections();
 
-    setCollections([...collections, newCollection]);
-    setIsDrawerOpen(false);
-    setNewCollectionName("");
-    setSelectedIcon(CollectionIcon.STAR);
-    setSelectedColor(CollectionColor.BLUE);
+      setIsDrawerOpen(false);
+      setNewCollectionName("");
+      setSelectedIcon(CollectionIcon.STAR);
+      setSelectedColor(CollectionColor.BLUE);
+    } catch (error) {
+      console.error("Error creating collection:", error);
+    }
   };
+
+  const loadCollections = useCallback(async () => {
+    try {
+      const collectionsWithStats = await getAllCollectionsWithStats();
+      setCollections(collectionsWithStats);
+    } catch (error) {
+      console.error("Error loading collections:", error);
+    }
+  }, []);
 
   const totalValue = collections.reduce(
     (sum, collection) => sum + collection.totalValue,
-    0
+    0,
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCollections();
+    }, [loadCollections]),
   );
 
   const filteredCollections = collections
     .filter((collection) =>
-      collection.name.toLowerCase().includes(searchQuery.toLowerCase())
+      collection.name.toLowerCase().includes(searchQuery.toLowerCase()),
     )
     .sort((a, b) => {
       switch (selectedSort) {
@@ -86,25 +104,38 @@ export default function CollectionScreen() {
       }
     });
 
-  useEffect(() => {
-    getAllCollections()
-      .then((data) => {
-        setCollections(data);
-      })
-      .catch(console.error);
-  }, []);
+  const {
+    backgroundColor,
+    cardBackground,
+    inputBackground,
+    textColor,
+    secondaryTextColor,
+    borderColor,
+  } = getThemeColors(theme);
+  const isDark = theme === "dark";
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor }]}
+      edges={["top"]}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Collections</Text>
+      <View style={[styles.header, { backgroundColor }]}>
+        <Text style={[styles.headerTitle, { color: textColor }]}>
+          My Collections
+        </Text>
       </View>
 
       {/* Total Value Section */}
-      <View style={styles.totalValueSection}>
-        <Text style={styles.totalValueLabel}>TOTAL VALUE</Text>
-        <Text style={styles.totalValueAmount}>${totalValue}</Text>
+      <View
+        style={[styles.totalValueSection, { backgroundColor: cardBackground }]}
+      >
+        <Text style={[styles.totalValueLabel, { color: secondaryTextColor }]}>
+          TOTAL VALUE
+        </Text>
+        <Text style={[styles.totalValueAmount, { color: textColor }]}>
+          ${totalValue.toFixed(2)}
+        </Text>
 
         {/* Progress Bar */}
         <View style={styles.progressBarContainer}>
@@ -135,24 +166,28 @@ export default function CollectionScreen() {
                   { backgroundColor: collection.color },
                 ]}
               />
-              <Text style={styles.legendText}>{collection.name}</Text>
+              <Text style={[styles.legendText, { color: secondaryTextColor }]}>
+                {collection.name}
+              </Text>
             </View>
           ))}
         </View>
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View
+        style={[styles.searchContainer, { backgroundColor: cardBackground }]}
+      >
         <FontAwesome
           name="search"
           size={16}
-          color="#64748b"
+          color={secondaryTextColor}
           style={styles.searchIcon}
         />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: textColor }]}
           placeholder="Search collections..."
-          placeholderTextColor="#64748b"
+          placeholderTextColor={secondaryTextColor}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -160,28 +195,32 @@ export default function CollectionScreen() {
 
       {/* Sort and Add Buttons */}
       <View style={styles.actionsRow}>
-        <Pressable style={styles.sortButton} onPress={() => setShowSort(true)}>
-          <FontAwesome name="sort-amount-desc" size={14} color="#ffffff" />
-          <Text style={styles.sortButtonText}>
-            {selectedSort === "name-asc"
-              ? "Name (A-Z)"
-              : selectedSort === "name-desc"
+        <Button
+          variant="outline"
+          size="medium"
+          icon="sort-amount-desc"
+          onPress={() => setShowSort(true)}
+          style={styles.sortButton as any}
+        >
+          {selectedSort === "name-asc"
+            ? "Name (A-Z)"
+            : selectedSort === "name-desc"
               ? "Name (Z-A)"
               : selectedSort === "price"
-              ? "Price"
-              : "Cards"}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={styles.addButton}
+                ? "Price"
+                : "Cards"}
+        </Button>
+        <Button
+          variant="primary"
+          size="small"
+          icon="plus"
           onPress={() => setIsDrawerOpen(true)}
-        >
-          <FontAwesome name="plus" size={20} color="#ffffff" />
-        </Pressable>
+          style={styles.addButton}
+        />
       </View>
 
       {/* Collections Count */}
-      <Text style={styles.collectionsCount}>
+      <Text style={[styles.collectionsCount, { color: secondaryTextColor }]}>
         Showing {filteredCollections.length} collections
       </Text>
 
@@ -193,17 +232,25 @@ export default function CollectionScreen() {
               key={collection.id}
               style={[
                 styles.collectionCard,
-                { borderLeftColor: collection.color },
+                {
+                  borderLeftColor: collection.color,
+                  backgroundColor: cardBackground,
+                },
               ]}
               onPress={() =>
                 router.push(
                   `/collection-detail?id=${
                     collection.id
-                  }&name=${encodeURIComponent(collection.name)}`
+                  }&name=${encodeURIComponent(collection.name)}`,
                 )
               }
             >
-              <View style={styles.collectionIcon}>
+              <View
+                style={[
+                  styles.collectionIcon,
+                  { backgroundColor: inputBackground },
+                ]}
+              >
                 <FontAwesome
                   name={collection.icon as any}
                   size={24}
@@ -211,16 +258,27 @@ export default function CollectionScreen() {
                 />
               </View>
               <View style={styles.collectionInfo}>
-                <Text style={styles.collectionName}>{collection.name}</Text>
-                <Text style={styles.collectionCards}>
+                <Text style={[styles.collectionName, { color: textColor }]}>
+                  {collection.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.collectionCards,
+                    { color: secondaryTextColor },
+                  ]}
+                >
                   {collection.cardCount.toLocaleString()} cards
                 </Text>
               </View>
               <View style={styles.collectionRight}>
-                <Text style={styles.collectionValue}>
+                <Text style={[styles.collectionValue, { color: textColor }]}>
                   ${collection.totalValue.toLocaleString()}
                 </Text>
-                <FontAwesome name="chevron-right" size={16} color="#64748b" />
+                <FontAwesome
+                  name="chevron-right"
+                  size={16}
+                  color={secondaryTextColor}
+                />
               </View>
             </Pressable>
           ))}
@@ -237,11 +295,20 @@ export default function CollectionScreen() {
         <View style={styles.drawerContent}>
           {/* Collection Name Input */}
           <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Collection Name</Text>
+            <Text style={[styles.formLabel, { color: textColor }]}>
+              Collection Name
+            </Text>
             <TextInput
-              style={styles.formInput}
+              style={[
+                styles.formInput,
+                {
+                  backgroundColor: inputBackground,
+                  color: textColor,
+                  borderColor,
+                },
+              ]}
               placeholder="e.g. Vintage Holos"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={secondaryTextColor}
               value={newCollectionName}
               onChangeText={setNewCollectionName}
             />
@@ -249,7 +316,9 @@ export default function CollectionScreen() {
 
           {/* Icon Selection */}
           <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Select Icon</Text>
+            <Text style={[styles.formLabel, { color: textColor }]}>
+              Select Icon
+            </Text>
             <View style={styles.iconGrid}>
               {Object.values(CollectionIcon).map((icon) => (
                 <Pressable
@@ -259,10 +328,11 @@ export default function CollectionScreen() {
                     selectedIcon === icon && styles.iconOptionSelected,
                     styles.collectionIcon2,
                     {
+                      backgroundColor: inputBackground,
                       borderColor:
                         selectedIcon === icon
-                          ? selectedColor ?? "#22c55e"
-                          : "#334155",
+                          ? (selectedColor ?? "#22c55e")
+                          : borderColor,
                     },
                   ]}
                   onPress={() => setSelectedIcon(icon)}
@@ -272,8 +342,8 @@ export default function CollectionScreen() {
                     size={24}
                     color={
                       selectedIcon === icon
-                        ? selectedColor ?? "#ffffff"
-                        : "#64748b"
+                        ? (selectedColor ?? textColor)
+                        : secondaryTextColor
                     }
                   />
                 </Pressable>
@@ -283,7 +353,9 @@ export default function CollectionScreen() {
 
           {/* Color Selection */}
           <View style={styles.formSection}>
-            <Text style={styles.formLabel}>Collection Color</Text>
+            <Text style={[styles.formLabel, { color: textColor }]}>
+              Collection Color
+            </Text>
             <View style={styles.colorGrid}>
               {Object.values(CollectionColor).map((color) => (
                 <Pressable
@@ -301,22 +373,23 @@ export default function CollectionScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <Pressable
-              style={styles.cancelButton}
+            <Button
+              variant="outline"
+              size="large"
               onPress={() => setIsDrawerOpen(false)}
+              style={styles.cancelButton as any}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.createButton,
-                !newCollectionName.trim() && styles.createButtonDisabled,
-              ]}
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="large"
               onPress={handleCreateCollection}
               disabled={!newCollectionName.trim()}
+              style={styles.createButton}
             >
-              <Text style={styles.createButtonText}>Create Collection</Text>
-            </Pressable>
+              Create
+            </Button>
           </View>
         </View>
       </BottomDrawer>
@@ -337,14 +410,30 @@ export default function CollectionScreen() {
             }}
           >
             <View style={styles.sortOptionLeft}>
-              <View style={styles.sortIconContainer}>
-                <Text style={styles.sortIconText}>AZ</Text>
+              <View
+                style={[
+                  styles.sortIconContainer,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(100, 116, 139, 0.2)"
+                      : "rgba(100, 116, 139, 0.15)",
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.sortIconText, { color: secondaryTextColor }]}
+                >
+                  AZ
+                </Text>
               </View>
-              <Text style={styles.sortOptionText}>Alphabetic (A-Z)</Text>
+              <Text style={[styles.sortOptionText, { color: textColor }]}>
+                Alphabetic (A-Z)
+              </Text>
             </View>
             <View
               style={[
                 styles.radioButton,
+                { borderColor },
                 selectedSort === "name-asc" && styles.radioButtonSelected,
               ]}
             >
@@ -362,14 +451,30 @@ export default function CollectionScreen() {
             }}
           >
             <View style={styles.sortOptionLeft}>
-              <View style={styles.sortIconContainer}>
-                <Text style={styles.sortIconText}>ZA</Text>
+              <View
+                style={[
+                  styles.sortIconContainer,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(100, 116, 139, 0.2)"
+                      : "rgba(100, 116, 139, 0.15)",
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.sortIconText, { color: secondaryTextColor }]}
+                >
+                  ZA
+                </Text>
               </View>
-              <Text style={styles.sortOptionText}>Alphabetic (Z-A)</Text>
+              <Text style={[styles.sortOptionText, { color: textColor }]}>
+                Alphabetic (Z-A)
+              </Text>
             </View>
             <View
               style={[
                 styles.radioButton,
+                { borderColor },
                 selectedSort === "name-desc" && styles.radioButtonSelected,
               ]}
             >
@@ -387,14 +492,30 @@ export default function CollectionScreen() {
             }}
           >
             <View style={styles.sortOptionLeft}>
-              <View style={styles.sortIconContainer}>
-                <FontAwesome name="dollar" size={16} color="#64748b" />
+              <View
+                style={[
+                  styles.sortIconContainer,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(100, 116, 139, 0.2)"
+                      : "rgba(100, 116, 139, 0.15)",
+                  },
+                ]}
+              >
+                <FontAwesome
+                  name="dollar"
+                  size={16}
+                  color={secondaryTextColor}
+                />
               </View>
-              <Text style={styles.sortOptionText}>Price</Text>
+              <Text style={[styles.sortOptionText, { color: textColor }]}>
+                Price
+              </Text>
             </View>
             <View
               style={[
                 styles.radioButton,
+                { borderColor },
                 selectedSort === "price" && styles.radioButtonSelected,
               ]}
             >
@@ -412,14 +533,30 @@ export default function CollectionScreen() {
             }}
           >
             <View style={styles.sortOptionLeft}>
-              <View style={styles.sortIconContainer}>
-                <FontAwesome name="clone" size={14} color="#64748b" />
+              <View
+                style={[
+                  styles.sortIconContainer,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(100, 116, 139, 0.2)"
+                      : "rgba(100, 116, 139, 0.15)",
+                  },
+                ]}
+              >
+                <FontAwesome
+                  name="clone"
+                  size={14}
+                  color={secondaryTextColor}
+                />
               </View>
-              <Text style={styles.sortOptionText}>Cards</Text>
+              <Text style={[styles.sortOptionText, { color: textColor }]}>
+                Cards
+              </Text>
             </View>
             <View
               style={[
                 styles.radioButton,
+                { borderColor },
                 selectedSort === "cards" && styles.radioButtonSelected,
               ]}
             >
@@ -437,18 +574,17 @@ export default function CollectionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    paddingHorizontal: 12,
   },
   header: {
-    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#1e293b",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 12,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#ffffff",
   },
   content: {
@@ -458,26 +594,23 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#0f172a",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   totalValueSection: {
     padding: 20,
-    backgroundColor: "#1e293b",
+    borderRadius: 16,
   },
   totalValueLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#94a3b8",
     letterSpacing: 1,
     marginBottom: 4,
   },
   totalValueAmount: {
     fontSize: 36,
     fontWeight: "bold",
-    color: "#ffffff",
     marginBottom: 16,
   },
   progressBarContainer: {
@@ -507,14 +640,11 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: "#cbd5e1",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
     borderRadius: 12,
-    marginHorizontal: 16,
     marginTop: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -525,20 +655,17 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: "#ffffff",
   },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginHorizontal: 16,
     marginTop: 20,
   },
   sortButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#1e293b",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -546,7 +673,6 @@ const styles = StyleSheet.create({
   sortButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#ffffff",
   },
   addButton: {
     width: 48,
@@ -558,20 +684,15 @@ const styles = StyleSheet.create({
   },
   collectionsCount: {
     fontSize: 13,
-    color: "#64748b",
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
+    marginVertical: 12,
   },
   collectionsList: {
-    paddingHorizontal: 16,
     paddingBottom: 20,
     gap: 12,
   },
   collectionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
@@ -580,7 +701,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#0f172a",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -591,12 +711,10 @@ const styles = StyleSheet.create({
   collectionName: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#ffffff",
     marginBottom: 4,
   },
   collectionCards: {
     fontSize: 13,
-    color: "#94a3b8",
   },
   collectionRight: {
     flexDirection: "row",
@@ -606,7 +724,6 @@ const styles = StyleSheet.create({
   collectionValue: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#ffffff",
   },
   sortDrawerContent: {
     paddingHorizontal: 24,
@@ -619,7 +736,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    borderBottomColor: "rgba(100, 116, 139, 0.1)",
   },
   sortOptionLeft: {
     flexDirection: "row",
@@ -630,7 +747,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(100, 116, 139, 0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -640,20 +756,17 @@ const styles = StyleSheet.create({
   sortIconText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#64748b",
     letterSpacing: 0.5,
   },
   sortOptionText: {
     fontSize: 17,
     fontWeight: "500",
-    color: "#ffffff",
   },
   radioButton: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: "#475569",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -678,18 +791,14 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#f1f5f9",
     letterSpacing: 0.5,
   },
   formInput: {
-    backgroundColor: "#0f172a",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#ffffff",
     borderWidth: 1,
-    borderColor: "#334155",
   },
   iconGrid: {
     flexDirection: "row",
@@ -700,11 +809,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: "#0f172a",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#334155",
   },
   iconOptionSelected: {
     backgroundColor: "#22c55e",
@@ -731,7 +838,6 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#334155",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -740,7 +846,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#f1f5f9",
   },
   createButton: {
     flex: 1,

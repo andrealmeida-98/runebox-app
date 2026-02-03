@@ -1,11 +1,11 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import React, { useEffect, useRef, useState } from "react";
+import { router, Stack, useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   BackHandler,
   Dimensions,
   Image,
-  Modal,
   PanResponder,
   Pressable,
   ScrollView,
@@ -18,13 +18,7 @@ import Carousel from "react-native-reanimated-carousel";
 import RenderHTML from "react-native-render-html";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Colors } from "@/constants/theme";
-import { useTheme } from "@/contexts/theme-context";
-
 import {
-  CommonIcon,
-  EpicIcon,
-  RareIcon,
   RbEnergy10Icon,
   RbEnergy11Icon,
   RbEnergy12Icon,
@@ -40,62 +34,79 @@ import {
   RbExhaustIcon,
   RbMightIcon,
   RbRuneRainbowIcon,
-  ShowcaseIcon,
-  UncommonIcon,
 } from "@/assets/icons";
+import { Colors } from "@/constants/theme";
+import { useTheme } from "@/contexts/theme-context";
+import { db } from "@/db/database";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
-const MIN_PANEL_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% minimum
-const MAX_PANEL_HEIGHT = SCREEN_HEIGHT * 0.7; // 70% maximum
+const MIN_PANEL_HEIGHT = SCREEN_HEIGHT * 0.35;
+const MAX_PANEL_HEIGHT = SCREEN_HEIGHT * 0.45;
 
-interface CardPreviewOverlayProps {
-  visible: boolean;
-  cards: Card[];
-  initialIndex: number;
-  onClose: () => void;
-  onCardPress?: (card: Card) => void;
-  singleCardMode?: boolean; // If true, only shows the single card without carousel
-}
-
-export function CardPreviewOverlay({
-  visible,
-  cards,
-  initialIndex,
-  onClose,
-  onCardPress,
-  singleCardMode = false,
-}: CardPreviewOverlayProps) {
+export default function CardDetailScreen() {
   const { theme } = useTheme();
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const { cardId, collectionId, cardIds } = useLocalSearchParams();
+  const cardIdStr = typeof cardId === "string" ? cardId : "";
+  const cardIdsStr = typeof cardIds === "string" ? cardIds : "";
+  const collectionIdStr = typeof collectionId === "string" ? collectionId : "";
 
-  // Sync activeIndex with initialIndex when it changes
+  const [cards, setCards] = useState<Card[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Load cards from database
   useEffect(() => {
-    setActiveIndex(initialIndex);
-  }, [initialIndex]);
+    const loadCards = async () => {
+      const orderedCardIds = cardIdsStr.split(",").filter((id) => id);
+      if (orderedCardIds.length === 0) return;
+
+      const placeholders = orderedCardIds.map(() => "?").join(",");
+      const cardsData = await db.getAllAsync(
+        `SELECT * FROM cards WHERE id IN (${placeholders})`,
+        orderedCardIds
+      );
+
+      // Sort cards in the same order as the IDs
+      const sortedCards = orderedCardIds
+        .map((id) => cardsData.find((c: any) => c.id === id))
+        .filter((card): card is Card => card !== undefined);
+
+      setCards(sortedCards);
+
+      // Find initial index
+      const initialIdx = sortedCards.findIndex((card) => card.id === cardIdStr);
+      setActiveIndex(initialIdx >= 0 ? initialIdx : 0);
+    };
+
+    loadCards();
+  }, [cardIdStr, cardIdsStr]);
+
+  const handleBack = () => {
+    if (collectionIdStr) {
+      router.push({
+        pathname: "/collection-detail",
+        params: { id: collectionIdStr },
+      });
+    } else {
+      router.back();
+    }
+  };
 
   // Handle Android back button
   useEffect(() => {
-    if (!visible) return;
-
     const backHandler = BackHandler.addEventListener(
       "hardwareBackPress",
       () => {
-        onClose();
-        return true; // Prevent default back behavior
-      },
+        handleBack();
+        return true;
+      }
     );
 
     return () => backHandler.remove();
-  }, [visible, onClose]);
-
-  // Use single card mode for large lists or when explicitly requested
-  const effectiveSingleCardMode = singleCardMode || cards.length > 100;
-  const displayCards = effectiveSingleCardMode ? [cards[initialIndex]] : cards;
-  const displayIndex = effectiveSingleCardMode ? 0 : activeIndex;
+  }, [collectionIdStr]);
 
   // Panel drag animation
   const panelHeight = useRef(new Animated.Value(MIN_PANEL_HEIGHT)).current;
@@ -128,31 +139,24 @@ export function CardPreviewOverlay({
           useNativeDriver: false,
         }).start();
       },
-    }),
+    })
   ).current;
 
-  const activeCard = displayCards[displayIndex];
-
-  // Get window dimensions for RenderHTML
   const { width: windowWidth } = useWindowDimensions();
 
-  // Process ability text to replace custom icon tags with img tags
   const processAbilityText = (text: string) => {
     if (!text) return "";
 
-    // Replace custom icon tags with span tags that we'll handle in the renderer
     let processed = text
       .replace(
         /:rb_(energy_\d+|exhaust|might):/g,
-        '<span class="icon" data-icon="rb_$1"></span>',
+        '<span class="icon" data-icon="rb_$1"></span>'
       )
       .replace(
         /:rb_rune_(calm|chaos|fury|mind|order|body|rainbow):/g,
-        '<span class="icon" data-icon="rb_rune_$1"></span>',
+        '<span class="icon" data-icon="rb_rune_$1"></span>'
       )
-      // Replace [text] with <strong>text</strong>
       .replace(/\[([^\]]+)\]/g, "<strong>$1</strong>")
-      // Remove <br /> tags inside <ul> elements
       .replace(/<ul>(<br\s*\/?>)+/g, "<ul>")
       .replace(/(<br\s*\/?>)+<\/ul>/g, "</ul>")
       .replace(/<\/li>(<br\s*\/?>)+<li>/g, "</li><li>");
@@ -160,23 +164,18 @@ export function CardPreviewOverlay({
     return processed;
   };
 
-  // Custom renderer for images (icons)
   const renderersProps = {
     img: {
       enableExperimentalPercentWidth: true,
     },
   };
+
   const renderers = {
     span: ({ tnode }: any) => {
       const dataIcon = tnode.attributes["data-icon"];
-
-      if (!dataIcon || tnode.attributes.class !== "icon") {
-        return null;
-      }
+      if (!dataIcon || tnode.attributes.class !== "icon") return null;
 
       const iconSize = 12;
-
-      // Map icon names to SVG components
       const iconMap: { [key: string]: any } = {
         rb_energy_1: RbEnergy1Icon,
         rb_energy_2: RbEnergy2Icon,
@@ -195,7 +194,6 @@ export function CardPreviewOverlay({
         rb_rune_rainbow: RbRuneRainbowIcon,
       };
 
-      // Map webp icon names to require paths
       const webpIconMap: { [key: string]: any } = {
         rb_rune_calm: require("@/assets/icons/calm.webp"),
         rb_rune_chaos: require("@/assets/icons/chaos.webp"),
@@ -208,7 +206,6 @@ export function CardPreviewOverlay({
       const IconComponent = iconMap[dataIcon];
       const webpSource = webpIconMap[dataIcon];
 
-      // Render SVG icon
       if (IconComponent) {
         return (
           <IconComponent
@@ -219,15 +216,11 @@ export function CardPreviewOverlay({
         );
       }
 
-      // Render webp image
       if (webpSource) {
         return (
           <Image
             source={webpSource}
-            style={{
-              width: iconSize,
-              height: iconSize,
-            }}
+            style={{ width: iconSize, height: iconSize }}
           />
         );
       }
@@ -253,161 +246,85 @@ export function CardPreviewOverlay({
     }
   };
 
-  const getRarityIcon = (rarity: string) => {
-    const rarityLower = rarity.toLowerCase();
-    switch (rarityLower) {
-      case CardRarity.COMMON:
-        return CommonIcon;
-      case CardRarity.UNCOMMON:
-        return UncommonIcon;
-      case CardRarity.RARE:
-        return RareIcon;
-      case CardRarity.EPIC:
-        return EpicIcon;
-      case CardRarity.SHOWCASE:
-        return ShowcaseIcon;
-      default:
-        return null;
-    }
-  };
-
-  const handleCardPress = () => {
-    // if (onCardPress && activeCard) {
-    //   onCardPress(activeCard);
-    // } else if (activeCard) {
-    //   // Default behavior: navigate to card detail
-    //   router.push(`/card-detail?cardId=${activeCard.id}`);
-    // }
-    console.log("Card pressed:", activeCard);
-  };
-
-  if (!activeCard) {
+  if (cards.length === 0) {
     return null;
   }
+
+  const activeCard = cards[activeIndex];
+  if (!activeCard) return null;
 
   const cardPrice =
     activeCard.price && activeCard.price > 0
       ? activeCard.price
       : activeCard.price_foil && activeCard.price_foil > 0
-        ? activeCard.price_foil
-        : 0;
+      ? activeCard.price_foil
+      : 0;
 
   const styles = createStyles(theme);
-
+  console.log("Rendering CardDetailScreen for card:", cardIds);
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={onClose} style={styles.closeButton}>
-            <FontAwesome name="times" size={24} color={Colors[theme].text} />
+          <Pressable onPress={handleBack} style={styles.closeButton}>
+            <FontAwesome name="arrow-left" size={20} color="#ffffff" />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {activeCard.name}
           </Text>
-          <Pressable onPress={handleCardPress} style={styles.detailButton}>
-            <FontAwesome
-              name="external-link"
-              size={20}
-              color={Colors[theme].text}
-            />
-          </Pressable>
+          <View style={styles.detailButton} />
         </View>
 
-        {/* Carousel or Single Card */}
-        {effectiveSingleCardMode ? (
-          // Single Card View
-          <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
-            <View style={styles.carouselItem}>
-              <View style={[styles.cardWrapper, styles.cardWrapperActive]}>
-                <Image
-                  source={
-                    activeCard.image_url
-                      ? { uri: activeCard.image_url }
-                      : require("@/assets/images/back-image.png")
-                  }
+        {/* Carousel */}
+        <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
+          <Carousel
+            loop={false}
+            width={CARD_WIDTH}
+            style={{
+              width: SCREEN_WIDTH,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            height={CARD_HEIGHT + 60}
+            data={cards}
+            defaultIndex={activeIndex}
+            onSnapToItem={(index) => setActiveIndex(index)}
+            renderItem={({ item, index }) => (
+              <View style={styles.carouselItem}>
+                <View
                   style={[
-                    styles.cardImage,
-                    activeCard.card_type === CardType.BATTLEFIELD &&
-                      styles.rotatedImage,
+                    styles.cardWrapper,
+                    index === activeIndex && styles.cardWrapperActive,
                   ]}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
-          </View>
-        ) : (
-          // Carousel View
-          <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
-            <Carousel
-              loop={false}
-              width={CARD_WIDTH}
-              style={{
-                width: SCREEN_WIDTH,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-              height={CARD_HEIGHT + 60}
-              data={displayCards}
-              defaultIndex={initialIndex >= 0 ? initialIndex : 0}
-              onProgressChange={(_, absoluteProgress) => {
-                const index = Math.round(absoluteProgress);
-                if (
-                  index !== activeIndex &&
-                  index >= 0 &&
-                  index < displayCards.length
-                ) {
-                  setActiveIndex(index);
-                }
-              }}
-              renderItem={({ item, index }) => (
-                <View style={styles.carouselItem}>
-                  <View
+                >
+                  <Image
+                    source={
+                      item.image_url
+                        ? { uri: item.image_url }
+                        : require("@/assets/images/back-image.png")
+                    }
                     style={[
-                      styles.cardWrapper,
-                      index === activeIndex && styles.cardWrapperActive,
+                      styles.cardImage,
+                      item.card_type === CardType.BATTLEFIELD &&
+                        styles.rotatedImage,
                     ]}
-                  >
-                    <Image
-                      source={
-                        item.image_url
-                          ? { uri: item.image_url }
-                          : require("@/assets/images/riftbound-card-example.png")
-                      }
-                      style={[
-                        styles.cardImage,
-                        item.card_type === CardType.BATTLEFIELD &&
-                          styles.rotatedImage,
-                      ]}
-                      resizeMode="contain"
-                    />
-                  </View>
+                    resizeMode="contain"
+                  />
                 </View>
-              )}
-              mode="parallax"
-              modeConfig={{
-                parallaxScrollingScale: 0.85,
-                parallaxScrollingOffset: 35,
-              }}
-            />
-          </View>
-        )}
+              </View>
+            )}
+            mode="parallax"
+            modeConfig={{
+              parallaxScrollingScale: 0.85,
+              parallaxScrollingOffset: 35,
+            }}
+          />
+        </View>
 
         {/* Card Details Panel */}
-        <Animated.View
-          style={[
-            styles.detailsPanel,
-            {
-              height: panelHeight,
-            },
-          ]}
-        >
-          {/* Drag Handle */}
+        <Animated.View style={[styles.detailsPanel, { height: panelHeight }]}>
           <View
             style={styles.dragHandleContainer}
             {...panResponder.panHandlers}
@@ -428,7 +345,6 @@ export function CardPreviewOverlay({
                 </View>
                 <View style={styles.priceSection}>
                   <Text style={styles.priceLabel}>MARKET PRICE</Text>
-
                   <View style={styles.priceWithChange}>
                     <Text style={styles.priceValue}>
                       €{cardPrice.toFixed(2)}
@@ -440,8 +356,8 @@ export function CardPreviewOverlay({
                           {
                             backgroundColor:
                               activeCard.price_change >= 0
-                                ? Colors[theme].successBackground
-                                : Colors[theme].errorBackground,
+                                ? "rgba(34, 197, 94, 0.15)"
+                                : "rgba(239, 68, 68, 0.15)",
                           },
                         ]}
                       >
@@ -453,9 +369,7 @@ export function CardPreviewOverlay({
                           }
                           size={10}
                           color={
-                            activeCard.price_change >= 0
-                              ? Colors[theme].success
-                              : Colors[theme].error
+                            activeCard.price_change >= 0 ? "#22c55e" : "#ef4444"
                           }
                         />
                         <Text
@@ -464,8 +378,8 @@ export function CardPreviewOverlay({
                             {
                               color:
                                 activeCard.price_change >= 0
-                                  ? Colors[theme].success
-                                  : Colors[theme].error,
+                                  ? "#22c55e"
+                                  : "#ef4444",
                             },
                           ]}
                         >
@@ -477,20 +391,17 @@ export function CardPreviewOverlay({
                 </View>
               </View>
             </View>
-            w
+
+            {/* Stats Grid */}
             <View style={styles.statsGrid}>
               <View style={styles.statCard}>
                 <View
                   style={[
                     styles.statIconContainer,
-                    { backgroundColor: Colors[theme].warningBackground },
+                    { backgroundColor: "rgba(251, 191, 36, 0.15)" },
                   ]}
                 >
-                  <RbMightIcon
-                    width={24}
-                    height={24}
-                    color={Colors[theme].warning}
-                  />
+                  <RbMightIcon width={24} height={24} color="#fbbf24" />
                 </View>
                 <View style={styles.statTextContainer}>
                   <Text style={styles.statLabel}>MIGHT</Text>
@@ -505,14 +416,10 @@ export function CardPreviewOverlay({
                 <View
                   style={[
                     styles.statIconContainer,
-                    { backgroundColor: Colors[theme].errorBackground },
+                    { backgroundColor: "rgba(239, 68, 68, 0.15)" },
                   ]}
                 >
-                  <FontAwesome
-                    name="fire"
-                    size={24}
-                    color={Colors[theme].error}
-                  />
+                  <FontAwesome name="fire" size={24} color="#ef4444" />
                 </View>
                 <View style={styles.statTextContainer}>
                   <Text style={styles.statLabel}>ENERGY</Text>
@@ -528,14 +435,10 @@ export function CardPreviewOverlay({
                 <View
                   style={[
                     styles.statIconContainer,
-                    { backgroundColor: Colors[theme].infoBackground },
+                    { backgroundColor: "rgba(59, 130, 246, 0.15)" },
                   ]}
                 >
-                  <FontAwesome
-                    name="cube"
-                    size={24}
-                    color={Colors[theme].info}
-                  />
+                  <FontAwesome name="cube" size={24} color="#3b82f6" />
                 </View>
                 <View style={styles.statTextContainer}>
                   <Text style={styles.statLabel}>TYPE</Text>
@@ -557,6 +460,7 @@ export function CardPreviewOverlay({
                 </View>
               </View>
             </View>
+
             {/* Card Ability Section */}
             {activeCard.ability && (
               <View style={styles.abilitySection}>
@@ -568,21 +472,21 @@ export function CardPreviewOverlay({
                     renderers={renderers}
                     renderersProps={renderersProps}
                     baseStyle={{
-                      color: Colors[theme].abilityText,
+                      color: theme === "dark" ? "#e2e8f0" : "#334155",
                       fontSize: 14,
                       lineHeight: 22,
                     }}
                     tagsStyles={{
                       em: {
                         fontStyle: "italic",
-                        color: Colors[theme].abilityText,
+                        color: theme === "dark" ? "#e2e8f0" : "#334155",
                       },
                       strong: {
                         fontWeight: "bold",
                         color: Colors[theme].text,
                       },
                       span: {
-                        color: Colors[theme].abilityText,
+                        color: theme === "dark" ? "#e2e8f0" : "#334155",
                       },
                       p: {
                         margin: 0,
@@ -596,12 +500,13 @@ export function CardPreviewOverlay({
           </ScrollView>
         </Animated.View>
       </SafeAreaView>
-    </Modal>
+    </>
   );
 }
 
 const createStyles = (theme: "light" | "dark") => {
   const colors = Colors[theme];
+  const isDark = theme === "dark";
 
   return StyleSheet.create({
     container: {
@@ -614,7 +519,9 @@ const createStyles = (theme: "light" | "dark") => {
       justifyContent: "space-between",
       paddingHorizontal: 20,
       paddingVertical: 14,
-      backgroundColor: colors.headerBackground,
+      backgroundColor: isDark
+        ? "rgba(30, 41, 59, 0.95)"
+        : "rgba(241, 245, 249, 0.95)",
     },
     closeButton: {
       padding: 8,
@@ -629,6 +536,7 @@ const createStyles = (theme: "light" | "dark") => {
     },
     detailButton: {
       padding: 8,
+      width: 40,
     },
     carouselWrapper: {
       width: SCREEN_WIDTH,
@@ -645,7 +553,9 @@ const createStyles = (theme: "light" | "dark") => {
       height: CARD_HEIGHT,
       borderRadius: 16,
       overflow: "hidden",
-      backgroundColor: colors.cardBackground,
+      backgroundColor: isDark
+        ? "rgba(30, 41, 59, 1)"
+        : "rgba(241, 245, 249, 1)",
       position: "relative",
     },
     cardWrapperActive: {
@@ -667,7 +577,9 @@ const createStyles = (theme: "light" | "dark") => {
       bottom: 0,
       left: 0,
       right: 0,
-      backgroundColor: colors.panelBackground,
+      backgroundColor: isDark
+        ? "rgba(30, 41, 59, 1)"
+        : "rgba(255, 255, 255, 1)",
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingHorizontal: 24,
@@ -685,7 +597,9 @@ const createStyles = (theme: "light" | "dark") => {
     dragHandle: {
       width: 40,
       height: 4,
-      backgroundColor: colors.dragHandle,
+      backgroundColor: isDark
+        ? "rgba(148, 163, 184, 0.4)"
+        : "rgba(100, 116, 139, 0.4)",
       borderRadius: 2,
     },
     scrollContent: {
@@ -711,7 +625,7 @@ const createStyles = (theme: "light" | "dark") => {
     },
     cardSubtitle: {
       fontSize: 14,
-      color: colors.secondaryText,
+      color: isDark ? "#94a3b8" : "#64748b",
     },
     priceSection: {
       alignItems: "flex-end",
@@ -719,7 +633,7 @@ const createStyles = (theme: "light" | "dark") => {
     priceLabel: {
       fontSize: 10,
       fontWeight: "700",
-      color: colors.tertiaryText,
+      color: isDark ? "#64748b" : "#94a3b8",
       letterSpacing: 1,
       marginBottom: 4,
     },
@@ -731,7 +645,7 @@ const createStyles = (theme: "light" | "dark") => {
     priceValue: {
       fontSize: 24,
       fontWeight: "800",
-      color: colors.success,
+      color: "#22c55e",
     },
     priceChangeContainer: {
       flexDirection: "row",
@@ -755,7 +669,9 @@ const createStyles = (theme: "light" | "dark") => {
     statCard: {
       width: "48%",
       height: 80,
-      backgroundColor: colors.statCardBackground,
+      backgroundColor: isDark
+        ? "rgba(100, 116, 139, 0.15)"
+        : "rgba(226, 232, 240, 0.5)",
       borderRadius: 12,
       paddingVertical: 16,
       paddingHorizontal: 12,
@@ -763,7 +679,9 @@ const createStyles = (theme: "light" | "dark") => {
       alignItems: "center",
       gap: 12,
       borderWidth: 1,
-      borderColor: colors.statCardBorder,
+      borderColor: isDark
+        ? "rgba(100, 116, 139, 0.2)"
+        : "rgba(203, 213, 225, 0.5)",
     },
     statIconContainer: {
       width: 48,
@@ -776,19 +694,10 @@ const createStyles = (theme: "light" | "dark") => {
       flex: 1,
       justifyContent: "center",
     },
-    statItem: {
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    rarityContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
     statLabel: {
       fontSize: 11,
       fontWeight: "600",
-      color: colors.tertiaryText,
+      color: isDark ? "#64748b" : "#94a3b8",
       letterSpacing: 0.5,
       marginBottom: 4,
     },
@@ -802,67 +711,26 @@ const createStyles = (theme: "light" | "dark") => {
       fontWeight: "700",
       color: colors.text,
     },
-    infoSection: {
-      backgroundColor: colors.statCardBackground,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 24,
-      borderWidth: 1,
-      borderColor: colors.statCardBorder,
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-    },
-    attributeItem: {
-      flex: 1,
-      minWidth: "30%",
-    },
-    attributeLabel: {
-      fontSize: 10,
-      fontWeight: "700",
-      color: colors.tertiaryText,
-      letterSpacing: 1,
-      marginBottom: 6,
-    },
-    attributeValueContainer: {
-      paddingVertical: 4,
-    },
-    attributeValue: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: colors.text,
-      textAlign: "center",
-    },
     abilitySection: {
       marginBottom: 24,
     },
     abilityLabel: {
       fontSize: 12,
       fontWeight: "700",
-      color: colors.tertiaryText,
+      color: isDark ? "#64748b" : "#94a3b8",
       letterSpacing: 1,
       marginBottom: 12,
     },
     abilityContainer: {
-      backgroundColor: colors.statCardBackground,
+      backgroundColor: isDark
+        ? "rgba(100, 116, 139, 0.1)"
+        : "rgba(226, 232, 240, 0.5)",
       borderRadius: 12,
       padding: 16,
       borderWidth: 1,
-      borderColor: colors.statCardBorder,
-    },
-    actionButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      paddingVertical: 16,
-      borderRadius: 12,
-      marginBottom: 24,
-    },
-    actionButtonText: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: "#ffffff",
+      borderColor: isDark
+        ? "rgba(100, 116, 139, 0.2)"
+        : "rgba(203, 213, 225, 0.5)",
     },
   });
 };

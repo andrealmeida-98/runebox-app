@@ -71,7 +71,7 @@ export function CardGridItem({
         {/* Quantity Badge */}
         {quantity > 0 && (
           <View style={styles.quantityBadge}>
-            <Text style={styles.quantityText}>{quantity}</Text>
+            <Text style={styles.quantityText}>{quantity}x</Text>
           </View>
         )}
       </View>
@@ -112,8 +112,17 @@ const styles = StyleSheet.create({
   },
   priceBadge: {
     position: "absolute",
-    bottom: 8,
-    left: 8,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  quantityBadge: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -124,21 +133,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#22c55e",
   },
-  quantityBadge: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-    backgroundColor: "#22c55e",
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   quantityText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "bold",
-    color: "#ffffff",
+    color: "#22c55e",
   },
   cardName: {
     fontSize: 14,

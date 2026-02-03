@@ -1,27 +1,64 @@
 import {
   DarkTheme,
   DefaultTheme,
-  ThemeProvider,
+  ThemeProvider as NavigationThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Notification } from "@/components/notification";
+import {
+  NotificationProvider,
+  useNotification,
+} from "@/contexts/notification-context";
+import { ThemeProvider, useTheme } from "@/contexts/theme-context";
 
 export const unstable_settings = {
   anchor: "(tabs)",
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function RootLayoutNav() {
+  const { theme, isLoading } = useTheme();
+  const { notification, hideNotification } = useNotification();
+
+  if (isLoading) {
+    return null;
+  }
+
+  const isDark = theme === "dark";
+  const backgroundColor = isDark ? "#000000" : "#FFFFFF";
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
+    <>
+      {/* Global Notification */}
+      <Notification
+        visible={notification.visible}
+        message={notification.message}
+        severity={notification.severity}
+        onDismiss={hideNotification}
+      />
+
+      <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor },
+          }}
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style={isDark ? "light" : "dark"} />
+      </NavigationThemeProvider>
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <NotificationProvider>
+        <RootLayoutNav />
+      </NotificationProvider>
     </ThemeProvider>
   );
 }

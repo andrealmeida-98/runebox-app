@@ -1,12 +1,14 @@
+import { Button } from "@/components/button";
+import { useTheme } from "@/contexts/theme-context";
 import {
   checkBackgroundSyncStatus,
   getLastSyncTime,
   manualSync,
 } from "@/db/syncBackgroundTask";
+import { getThemeColors } from "@/utils/theme-utils";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   RefreshControl,
   ScrollView,
@@ -17,6 +19,7 @@ import {
 } from "react-native";
 
 export default function HomeScreen() {
+  const { theme, toggleTheme } = useTheme();
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [syncing, setSyncing] = useState(false);
@@ -126,20 +129,45 @@ export default function HomeScreen() {
     "When one of your units becomes [Mighty], you may exhaust me to channel 1 rune exhausted. <i>(A unit is Mighty while it has 5+ :rb_might:.)</i>";
     `,
   };
+
+  const {
+    backgroundColor,
+    cardBackground,
+    inputBackground,
+    textColor,
+    secondaryTextColor,
+    borderColor,
+  } = getThemeColors(theme);
+  const isDark = theme === "dark";
+
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor }]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Database Sync</Text>
+      <View style={[styles.header, { backgroundColor }]}>
+        <Text style={[styles.headerTitle, { color: textColor }]}>
+          Database Sync
+        </Text>
+        <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
+          <Ionicons
+            name={isDark ? "sunny" : "moon"}
+            size={24}
+            color={textColor}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Sync Status Card */}
-      <View style={styles.syncCard}>
+      <View
+        style={[
+          styles.syncCard,
+          { backgroundColor: cardBackground, borderColor, borderWidth: 1 },
+        ]}
+      >
         <View style={styles.syncHeader}>
           <View style={styles.syncTitleContainer}>
             <Ionicons
@@ -147,7 +175,9 @@ export default function HomeScreen() {
               size={24}
               color={getSyncStatusColor()}
             />
-            <Text style={styles.syncTitle}>Sync Status</Text>
+            <Text style={[styles.syncTitle, { color: textColor }]}>
+              Sync Status
+            </Text>
           </View>
           <View
             style={[
@@ -164,12 +194,27 @@ export default function HomeScreen() {
         {/* Last Sync Info */}
         <View style={styles.infoRow}>
           <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={20} color="#666" />
+            <Ionicons
+              name="time-outline"
+              size={20}
+              color={isDark ? "#666" : "#999"}
+            />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Last Sync</Text>
-              <Text style={styles.infoValue}>{getTimeSinceLastSync()}</Text>
+              <Text
+                style={[styles.infoLabel, { color: isDark ? "#666" : "#999" }]}
+              >
+                Last Sync
+              </Text>
+              <Text style={[styles.infoValue, { color: textColor }]}>
+                {getTimeSinceLastSync()}
+              </Text>
               {lastSync && (
-                <Text style={styles.infoSubtext}>
+                <Text
+                  style={[
+                    styles.infoSubtext,
+                    { color: isDark ? "#666" : "#999" },
+                  ]}
+                >
                   {lastSync.toLocaleString()}
                 </Text>
               )}
@@ -190,11 +235,20 @@ export default function HomeScreen() {
               color={syncStatus?.isRegistered ? "#22c55e" : "#f59e0b"}
             />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Background Sync</Text>
-              <Text style={styles.infoValue}>
+              <Text
+                style={[styles.infoLabel, { color: isDark ? "#666" : "#999" }]}
+              >
+                Background Sync
+              </Text>
+              <Text style={[styles.infoValue, { color: textColor }]}>
                 {syncStatus?.isRegistered ? "Active" : "Inactive"}
               </Text>
-              <Text style={styles.infoSubtext}>
+              <Text
+                style={[
+                  styles.infoSubtext,
+                  { color: isDark ? "#666" : "#999" },
+                ]}
+              >
                 Runs when app is closed (OS-dependent)
               </Text>
             </View>
@@ -215,8 +269,15 @@ export default function HomeScreen() {
                 color={syncResult.success ? "#22c55e" : "#ef4444"}
               />
               <View style={styles.infoTextContainer}>
-                <Text style={styles.infoLabel}>Last Sync Result</Text>
-                <Text style={styles.infoValue}>
+                <Text
+                  style={[
+                    styles.infoLabel,
+                    { color: isDark ? "#666" : "#999" },
+                  ]}
+                >
+                  Last Sync Result
+                </Text>
+                <Text style={[styles.infoValue, { color: textColor }]}>
                   {syncResult.success
                     ? `Updated ${syncResult.cardsUpdated || 0} cards and ${
                         syncResult.setsUpdated || 0
@@ -229,23 +290,18 @@ export default function HomeScreen() {
         )}
 
         {/* Manual Sync Button */}
-        <TouchableOpacity
-          style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
+        <Button
+          variant="primary"
+          size="large"
+          icon="refresh"
           onPress={handleManualSync}
           disabled={syncing}
+          loading={syncing}
+          fullWidth
+          style={styles.syncButton}
         >
-          {syncing ? (
-            <>
-              <ActivityIndicator color="#fff" size="small" />
-              <Text style={styles.syncButtonText}>Syncing...</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="refresh" size={20} color="#fff" />
-              <Text style={styles.syncButtonText}>Sync Now</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          {syncing ? "Syncing..." : "Sync Now"}
+        </Button>
       </View>
     </ScrollView>
   );
@@ -254,7 +310,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0a",
   },
   header: {
     flexDirection: "row",
@@ -263,15 +318,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 20,
-    backgroundColor: "#0a0a0a",
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "bold",
     color: "#fff",
   },
+  themeToggle: {
+    padding: 8,
+  },
   syncCard: {
-    backgroundColor: "#1a1a1a",
     margin: 20,
     marginTop: 10,
     borderRadius: 16,
@@ -291,7 +347,6 @@ const styles = StyleSheet.create({
   syncTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#fff",
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -316,21 +371,17 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: "#666",
     marginBottom: 4,
   },
   infoValue: {
     fontSize: 16,
-    color: "#fff",
     fontWeight: "600",
     marginBottom: 2,
   },
   infoSubtext: {
     fontSize: 12,
-    color: "#666",
   },
   syncButton: {
-    backgroundColor: "#3b82f6",
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
