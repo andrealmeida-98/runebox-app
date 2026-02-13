@@ -13,6 +13,7 @@ import {
   addCardToCollection,
   getCollectionEntries,
 } from "@/db/queries/collection";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card } from "@/interfaces/card";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -22,10 +23,12 @@ const CARD_WIDTH = (SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP * 2) / 3;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
 export default function AddCardToCollectionScreen() {
+  useAndroidBackHandler();
+
   const { collectionId, collectionName } = useLocalSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>(
-    {}
+    {},
   );
   const [cards, setCards] = useState<Card[]>([]);
   const [collectionCardIds, setCollectionCardIds] = useState<string[]>([]);
@@ -96,7 +99,7 @@ export default function AddCardToCollectionScreen() {
 
   const handleAddCards = async () => {
     const cardsToAdd = Object.entries(cardQuantities).filter(
-      ([_, quantity]) => quantity > 0
+      ([_, quantity]) => quantity > 0,
     );
 
     if (cardsToAdd.length === 0) return;
@@ -113,7 +116,7 @@ export default function AddCardToCollectionScreen() {
       showSuccess(
         `Successfully added ${totalAdded} card${
           totalAdded !== 1 ? "s" : ""
-        } to collection`
+        } to collection`,
       );
 
       // Reset quantities

@@ -3,6 +3,7 @@ import { CardPreviewOverlay } from "@/components/card-preview-overlay";
 import { SearchInput } from "@/components/search-input";
 import { getStandardHeaderOptions } from "@/constants/header-options";
 import { getCardsBySetOrderedWithPagination } from "@/db/queries/cards";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card } from "@/interfaces/card";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -11,6 +12,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SetDetailScreen() {
+  useAndroidBackHandler("/search");
+
   const { setName, setAbv } = useLocalSearchParams();
   const router = useRouter();
 

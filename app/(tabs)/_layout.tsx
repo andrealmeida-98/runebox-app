@@ -18,38 +18,18 @@ export default function TabLayout() {
   const inactiveTintColor = isDark ? "#888888" : "#666666";
   const insets = useSafeAreaInsets();
 
-  // Get current route to determine active tab for sub-pages
+  // Get current route to highlight active tab on sub-pages
   const segments = useSegments();
-  const currentRoute = segments[segments.length - 1];
+  const currentRoute = segments[segments.length - 1] as string;
 
   // Map sub-pages to their parent tabs
-  const getParentTab = (route: string | undefined): string | null => {
-    if (!route) return null;
-
+  const getParentTab = (route: string): string | null => {
     const routeMap: Record<string, string> = {
       "collection-detail": "collection",
       "add-card-to-collection": "collection",
-      "set-detail": "search",
       "deck-detail": "decks",
+      "set-detail": "search",
     };
-
-    // For card-detail, check if we came from collection or deck
-    // by looking at previous segments or route params
-    // Default to collection as it's more common
-    if (route === "card-detail") {
-      // Check if we have collection or deck in the navigation history
-      const hasCollection = segments.some(
-        (s) => s === "collection-detail" || s === "collection",
-      );
-      const hasDeck = segments.some(
-        (s) => s === "deck-detail" || s === "decks",
-      );
-
-      if (hasDeck) return "decks";
-      if (hasCollection) return "collection";
-      return "collection"; // default
-    }
-
     return routeMap[route] || null;
   };
 
@@ -99,7 +79,6 @@ export default function TabLayout() {
         name="collection"
         options={{
           title: "Collection",
-          href: parentTab === "collection" ? "/collection" : undefined,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name="cards-outline"
@@ -113,7 +92,6 @@ export default function TabLayout() {
         name="search"
         options={{
           title: "Search",
-          href: parentTab === "search" ? "/search" : undefined,
           tabBarIcon: ({ color, focused }) => (
             <Feather
               name="search"
@@ -127,7 +105,6 @@ export default function TabLayout() {
         name="decks"
         options={{
           title: "Decks",
-          href: parentTab === "decks" ? "/decks" : undefined,
           tabBarIcon: ({ color, focused }) => (
             <MaterialCommunityIcons
               name="bookmark-box-multiple"
@@ -148,7 +125,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Sub-pages - Hidden from tab bar but keep bottom navigation visible */}
+      {/* Detail pages - Hidden from tab bar but keep bottom navigation visible */}
       <Tabs.Screen
         name="collection-detail"
         options={{

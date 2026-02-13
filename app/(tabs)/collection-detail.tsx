@@ -27,6 +27,7 @@ import { CardGridItem } from "@/components/card-grid-item";
 import { ModalDialog } from "@/components/modal";
 import { SearchInput } from "@/components/search-input";
 import { TextInput as CustomTextInput } from "@/components/text-input";
+import { Colors } from "@/constants/theme";
 import {
   useShowError,
   useShowInfo,
@@ -40,6 +41,7 @@ import {
   getCollectionEntries,
   updateCollection,
 } from "@/db/queries/collection";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
 import {
   importCardsToCollection,
@@ -54,6 +56,8 @@ const CARD_WIDTH = (SCREEN_WIDTH - CARD_PADDING * 2 - CARD_GAP * 2) / 3;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 
 export default function CollectionDetailScreen() {
+  useAndroidBackHandler("/collection");
+
   const { id, name } = useLocalSearchParams();
   const collectionId = typeof id === "string" ? id : "1";
   const collectionName = typeof name === "string" ? name : "Collection";
@@ -85,6 +89,10 @@ export default function CollectionDetailScreen() {
   const [showCardPreview, setShowCardPreview] = useState(false);
   const [selectedCardIndex, setSelectedCardIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  const { theme } = useTheme();
+  const colors = Colors[theme];
+  const { cardBackground } = getThemeColors(theme);
 
   // Load collection data when screen comes into focus
   useFocusEffect(
@@ -276,8 +284,6 @@ export default function CollectionDetailScreen() {
       setIsUpdating(false);
     }
   };
-  const theme = useTheme();
-  const { cardBackground } = getThemeColors(theme.theme);
 
   return (
     <>
@@ -371,53 +377,62 @@ export default function CollectionDetailScreen() {
 
         {/* Floating Menu */}
         {showFabMenu && (
-          <View style={styles.fabMenu}>
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                setShowImportModal(true);
-              }}
-            >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="download" size={20} color="#ffffff" />
-              </View>
-              <Text style={styles.fabMenuText}>Import</Text>
-            </Pressable>
+          <Pressable
+            style={styles.fabMenuBackdrop}
+            onPress={() => setShowFabMenu(false)}
+          >
+            <View style={styles.fabMenu} onStartShouldSetResponder={() => true}>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  setShowImportModal(true);
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome
+                    name="download"
+                    size={20}
+                    color={colors.success}
+                  />
+                </View>
+                <Text style={styles.fabMenuText}>Import</Text>
+              </Pressable>
 
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                // Handle export
-                console.log("Export");
-              }}
-            >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="upload" size={20} color="#ffffff" />
-              </View>
-              <Text style={styles.fabMenuText}>Export</Text>
-            </Pressable>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  // Handle export
+                  console.log("Export");
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome name="upload" size={20} color={colors.success} />
+                </View>
+                <Text style={styles.fabMenuText}>Export</Text>
+              </Pressable>
 
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                router.push({
-                  pathname: "/add-card-to-collection",
-                  params: {
-                    collectionId,
-                    collectionName,
-                  },
-                });
-              }}
-            >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="search" size={20} color="#ffffff" />
-              </View>
-              <Text style={styles.fabMenuText}>Search</Text>
-            </Pressable>
-          </View>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  router.push({
+                    pathname: "/add-card-to-collection",
+                    params: {
+                      collectionId,
+                      collectionName,
+                    },
+                  });
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome name="search" size={20} color="#ffffff" />
+                </View>
+                <Text style={styles.fabMenuText}>Search</Text>
+              </Pressable>
+            </View>
+          </Pressable>
         )}
 
         {/* Floating Action Button */}
@@ -1011,6 +1026,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  fabMenuBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "transparent",
   },
   fabMenu: {
     position: "absolute",

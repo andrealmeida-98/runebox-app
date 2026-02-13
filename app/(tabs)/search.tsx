@@ -6,6 +6,7 @@ import {
   getCardsBySetOrderedWithPagination,
 } from "@/db/queries/cards";
 import { getSets } from "@/db/queries/sets";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardDomain, CardRarity, CardType } from "@/interfaces/card";
 import { Set } from "@/interfaces/set";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +17,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AllCards() {
+  useAndroidBackHandler(undefined, true);
+
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"cards" | "expansions">("cards");
   const [cards, setCards] = useState<Card[]>([]);
@@ -308,11 +311,6 @@ export default function AllCards() {
           setActiveFilters(updatedFilters);
         }}
       />
-      {searchQuery.length > 0 && (
-        <TouchableOpacity onPress={() => setSearchQuery("")}>
-          <Ionicons name="close-circle" size={20} color="#666" />
-        </TouchableOpacity>
-      )}
 
       {/* Tabs */}
       <View style={styles.tabContainer}>

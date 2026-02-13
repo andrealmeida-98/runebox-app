@@ -14,10 +14,6 @@ import {
 } from "@/contexts/notification-context";
 import { ThemeProvider, useTheme } from "@/contexts/theme-context";
 
-export const unstable_settings = {
-  anchor: "(tabs)",
-};
-
 function RootLayoutNav() {
   const { theme, isLoading } = useTheme();
   const { notification, hideNotification } = useNotification();

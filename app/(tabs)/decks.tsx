@@ -23,11 +23,14 @@ import {
   getDecksByUser,
   getLegendCardForDeck,
 } from "@/db/queries/deck";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { useUserId } from "@/hooks/use-user-id";
 import { Card } from "@/interfaces/card";
 import { Deck } from "@/interfaces/deck";
 
 export default function DecksScreen() {
+  useAndroidBackHandler(undefined, true);
+
   const { userId, loading: userLoading } = useUserId();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [deckLegends, setDeckLegends] = useState<Record<string, Card | null>>(
