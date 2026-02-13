@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { BottomDrawer } from "./bottom-drawer";
+import { Chip } from "./chip";
+import { Select } from "./select";
 
 export interface Filter {
   name: string;
@@ -18,6 +20,8 @@ export interface Filter {
     | "text"
     | "number"
     | "select"
+    | "multiselect"
+    | "select-with-chips"
     | "range"
     | "boolean"
     | "comparison"
@@ -25,7 +29,7 @@ export interface Filter {
   value: any;
   operator?: string; // For comparison type: ">", "<", ">=", "<=", "="
   domainOperator?: "OR" | "AND"; // For domain type: "OR" or "AND" logic
-  options?: string[]; // For select type
+  options?: string[]; // For select/multiselect/select-with-chips type
   images?: { [key: string]: any }; // For domain type - maps option to image
   min?: number; // For range type
   max?: number; // For range type
@@ -84,7 +88,9 @@ export const SearchInput = (props: SearchInputProps) => {
               filter.type === "range" ||
               filter.type === "comparison"
             ? 0
-            : filter.type === "domain"
+            : filter.type === "domain" ||
+                filter.type === "multiselect" ||
+                filter.type === "select-with-chips"
               ? []
               : "",
       operator: filter.type === "comparison" ? ">=" : filter.operator,
@@ -107,7 +113,11 @@ export const SearchInput = (props: SearchInputProps) => {
       filter.type === "comparison"
     )
       return filter.value > 0;
-    if (filter.type === "domain")
+    if (
+      filter.type === "domain" ||
+      filter.type === "multiselect" ||
+      filter.type === "select-with-chips"
+    )
       return Array.isArray(filter.value) && filter.value.length > 0;
     return (
       filter.value !== "" && filter.value !== null && filter.value !== undefined
@@ -122,7 +132,11 @@ export const SearchInput = (props: SearchInputProps) => {
       filter.type === "comparison"
     )
       return filter.value > 0;
-    if (filter.type === "domain")
+    if (
+      filter.type === "domain" ||
+      filter.type === "multiselect" ||
+      filter.type === "select-with-chips"
+    )
       return Array.isArray(filter.value) && filter.value.length > 0;
     return (
       filter.value !== "" && filter.value !== null && filter.value !== undefined
@@ -179,6 +193,90 @@ export const SearchInput = (props: SearchInputProps) => {
                 </Text>
               </Pressable>
             ))}
+          </View>
+        );
+
+      case "multiselect":
+        return (
+          <View style={styles.selectContainer}>
+            {filter.options?.map((option) => {
+              const isSelected = Array.isArray(filter.value)
+                ? filter.value.includes(option)
+                : filter.value === option;
+              return (
+                <Pressable
+                  key={option}
+                  style={[
+                    styles.selectOption,
+                    isSelected && styles.selectOptionActive,
+                  ]}
+                  onPress={() => {
+                    // Toggle multiselect option
+                    const currentValue = Array.isArray(filter.value)
+                      ? filter.value
+                      : filter.value
+                        ? [filter.value]
+                        : [];
+                    const newValue = currentValue.includes(option)
+                      ? currentValue.filter((v) => v !== option)
+                      : [...currentValue, option];
+                    handleFilterChange(index, newValue);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.selectOptionText,
+                      isSelected && styles.selectOptionTextActive,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+
+      case "select-with-chips":
+        return (
+          <View style={styles.selectWithChipsContainer}>
+            {/* Selected chips */}
+            {Array.isArray(filter.value) && filter.value.length > 0 && (
+              <View style={styles.chipsContainer}>
+                {filter.value.map((selectedValue: string, chipIndex: number) => (
+                  <Chip
+                    key={`${selectedValue}-${chipIndex}`}
+                    label={selectedValue}
+                    variant="info"
+                    size="small"
+                    onRemove={() => {
+                      const currentValue = Array.isArray(filter.value)
+                        ? filter.value
+                        : [];
+                      const newValue = currentValue.filter(
+                        (v) => v !== selectedValue
+                      );
+                      handleFilterChange(index, newValue);
+                    }}
+                  />
+                ))}
+              </View>
+            )}
+            {/* Select dropdown */}
+            <Select
+              options={filter.options || []}
+              value=""
+              onChange={(selectedOption) => {
+                const currentValue = Array.isArray(filter.value)
+                  ? filter.value
+                  : [];
+                // Only add if not already selected
+                if (!currentValue.includes(selectedOption)) {
+                  handleFilterChange(index, [...currentValue, selectedOption]);
+                }
+              }}
+              placeholder={`Select ${filter.label}`}
+            />
           </View>
         );
 
@@ -732,5 +830,13 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  selectWithChipsContainer: {
+    gap: 12,
+  },
+  chipsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
 });

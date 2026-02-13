@@ -33,11 +33,13 @@ import {
   removeCardFromDeck,
   updateCardQuantityInDeck,
 } from "@/db/queries/deck";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardDomain, CardType } from "@/interfaces/card";
 import { Deck } from "@/interfaces/deck";
 import { getThemeColors } from "@/utils/theme-utils";
 
 export default function DeckDetailScreen() {
+  useAndroidBackHandler("/decks");
   const { deckId } = useLocalSearchParams();
   const deckIdStr = typeof deckId === "string" ? deckId : "";
   const { theme } = useTheme();
@@ -624,7 +626,9 @@ export default function DeckDetailScreen() {
                   {deckCards
                     .reduce(
                       (sum, item) =>
-                        sum + (item.card.price || 0) * item.quantity,
+                        sum +
+                        (item.card.price || item.card.price_foil || 0) *
+                          item.quantity,
                       0,
                     )
                     .toFixed(2)}
@@ -832,57 +836,63 @@ export default function DeckDetailScreen() {
 
         {/* Floating Menu */}
         {showFabMenu && (
-          <View
-            style={[
-              styles.fabMenu,
-              { backgroundColor: colors.headerBackground },
-            ]}
+          <Pressable
+            style={styles.fabMenuBackdrop}
+            onPress={() => setShowFabMenu(false)}
           >
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                setShowImportModal(true);
-              }}
+            <View
+              style={[
+                styles.fabMenu,
+                { backgroundColor: colors.headerBackground },
+              ]}
+              onStartShouldSetResponder={() => true}
             >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="download" size={18} color={colors.tint} />
-              </View>
-              <Text style={[styles.fabMenuText, { color: colors.text }]}>
-                Import Deck
-              </Text>
-            </Pressable>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  setShowImportModal(true);
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome name="download" size={18} color={colors.tint} />
+                </View>
+                <Text style={[styles.fabMenuText, { color: colors.text }]}>
+                  Import Deck
+                </Text>
+              </Pressable>
 
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                showInfo("Add card functionality coming soon");
-              }}
-            >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="plus" size={18} color={colors.success} />
-              </View>
-              <Text style={[styles.fabMenuText, { color: colors.text }]}>
-                Add Card
-              </Text>
-            </Pressable>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  showInfo("Add card functionality coming soon");
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome name="plus" size={18} color={colors.success} />
+                </View>
+                <Text style={[styles.fabMenuText, { color: colors.text }]}>
+                  Add Card
+                </Text>
+              </Pressable>
 
-            <Pressable
-              style={styles.fabMenuItem}
-              onPress={() => {
-                setShowFabMenu(false);
-                setShowDeleteModal(true);
-              }}
-            >
-              <View style={styles.fabMenuIconContainer}>
-                <FontAwesome name="trash" size={18} color={colors.error} />
-              </View>
-              <Text style={[styles.fabMenuText, { color: colors.text }]}>
-                Delete Deck
-              </Text>
-            </Pressable>
-          </View>
+              <Pressable
+                style={styles.fabMenuItem}
+                onPress={() => {
+                  setShowFabMenu(false);
+                  setShowDeleteModal(true);
+                }}
+              >
+                <View style={styles.fabMenuIconContainer}>
+                  <FontAwesome name="trash" size={18} color={colors.error} />
+                </View>
+                <Text style={[styles.fabMenuText, { color: colors.text }]}>
+                  Delete Deck
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
         )}
 
         <Pressable
@@ -950,10 +960,6 @@ export default function DeckDetailScreen() {
         <View style={styles.importModalContent}>
           <Text style={[styles.importInstructions, { color: colors.text }]}>
             Enter card data in the following format:
-          </Text>
-          <Text style={[styles.importExample, { color: colors.icon }]}>
-            1 Yasuo - Unforgiven (OGN-259){"\n"}1 Ride the Wind (OGN-173){"\n"}1
-            Zaun Warrens (OGN-298)
           </Text>
           <TextInput
             style={[
@@ -1229,12 +1235,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontWeight: "500",
   },
-  energyIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
   section: {
     marginTop: 24,
     paddingHorizontal: 20,
@@ -1359,6 +1359,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
+  fabMenuBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "transparent",
+  },
   fabMenu: {
     position: "absolute",
     bottom: 100,
@@ -1414,13 +1422,6 @@ const styles = StyleSheet.create({
   importInstructions: {
     fontSize: 14,
     marginBottom: 4,
-  },
-  importExample: {
-    fontSize: 13,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    padding: 12,
-    borderRadius: 8,
-    fontFamily: "monospace",
   },
   importTextArea: {
     borderWidth: 1,

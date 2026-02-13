@@ -9,14 +9,14 @@ export async function getCardsByIds(cardIds: string[]): Promise<Card[]> {
   const placeholders = cardIds.map(() => "?").join(",");
   return db.getAllAsync(
     `SELECT id, price, price_foil FROM cards WHERE id IN (${placeholders})`,
-    cardIds
+    cardIds,
   ) as Promise<Card[]>;
 }
 
 export interface CardFilters {
-  rarity?: string;
-  cardType?: string;
-  setAbv?: string;
+  rarity?: string[];
+  cardType?: string[];
+  setAbv?: string[];
   energy?: { value: number; operator: string };
   might?: { value: number; operator: string };
   domain?: string[];
@@ -26,7 +26,7 @@ export interface CardFilters {
 
 export async function getCards(
   searchQuery?: string,
-  pageNum?: number
+  pageNum?: number,
 ): Promise<Card[]> {
   const PAGE_SIZE = 20;
   const offset = pageNum ? (pageNum - 1) * PAGE_SIZE : 0;
@@ -40,14 +40,14 @@ export async function getCards(
         ORDER BY updated_at DESC, id DESC
         LIMIT ? OFFSET ?
         `,
-    [searchPattern, PAGE_SIZE, offset]
+    [searchPattern, PAGE_SIZE, offset],
   );
 }
 
 export async function getCardsBySetOrderedWithPagination(
   searchQuery?: string,
   pageNum?: number,
-  filters?: CardFilters
+  filters?: CardFilters,
 ): Promise<Card[]> {
   const PAGE_SIZE = 20;
   const offset = pageNum ? (pageNum - 1) * PAGE_SIZE : 0;
@@ -64,36 +64,43 @@ export async function getCardsBySetOrderedWithPagination(
     searchPattern,
   ]);
 
-  if (filters?.rarity) {
-    whereConditions.push("LOWER(c.rarity) = LOWER(?)");
-    params.push(filters.rarity);
+  if (filters?.rarity && filters.rarity.length > 0) {
+    const rarityConditions = filters.rarity.map(
+      () => "LOWER(c.rarity) = LOWER(?)",
+    );
+    whereConditions.push(`(${rarityConditions.join(" OR ")})`);
+    filters.rarity.forEach((rarity) => params.push(rarity));
     console.log(
       "Added rarity filter:",
       whereConditions[whereConditions.length - 1],
-      "Param added:",
-      filters.rarity
+      "Params added:",
+      filters.rarity,
     );
   }
 
-  if (filters?.cardType) {
-    whereConditions.push("LOWER(c.card_type) = LOWER(?)");
-    params.push(filters.cardType);
+  if (filters?.cardType && filters.cardType.length > 0) {
+    const typeConditions = filters.cardType.map(
+      () => "LOWER(c.card_type) = LOWER(?)",
+    );
+    whereConditions.push(`(${typeConditions.join(" OR ")})`);
+    filters.cardType.forEach((type) => params.push(type));
     console.log(
       "Added cardType filter:",
       whereConditions[whereConditions.length - 1],
-      "Param added:",
-      filters.cardType
+      "Params added:",
+      filters.cardType,
     );
   }
 
-  if (filters?.setAbv) {
-    whereConditions.push("c.set_abv = ?");
-    params.push(filters.setAbv);
+  if (filters?.setAbv && filters.setAbv.length > 0) {
+    const setConditions = filters.setAbv.map(() => "c.set_abv = ?");
+    whereConditions.push(`(${setConditions.join(" OR ")})`);
+    filters.setAbv.forEach((set) => params.push(set));
     console.log(
       "Added setAbv filter:",
       whereConditions[whereConditions.length - 1],
-      "Param added:",
-      filters.setAbv
+      "Params added:",
+      filters.setAbv,
     );
   }
 
@@ -104,7 +111,7 @@ export async function getCardsBySetOrderedWithPagination(
       "Added energy filter:",
       whereConditions[whereConditions.length - 1],
       "Param added:",
-      filters.energy.value
+      filters.energy.value,
     );
   }
 
@@ -115,7 +122,7 @@ export async function getCardsBySetOrderedWithPagination(
       "Added might filter:",
       whereConditions[whereConditions.length - 1],
       "Param added:",
-      filters.might.value
+      filters.might.value,
     );
   }
 
@@ -138,7 +145,7 @@ export async function getCardsBySetOrderedWithPagination(
       "Params added:",
       filters.domain.map((d) => `%"${d}"%`),
       "Operator:",
-      operator
+      operator,
     );
   }
 
@@ -164,7 +171,7 @@ export async function getCardsBySetOrderedWithPagination(
 }
 
 export async function getAllCardsBySetOrdered(
-  searchQuery?: string
+  searchQuery?: string,
 ): Promise<Card[]> {
   const searchPattern = searchQuery ? `%${searchQuery}%` : "%";
 
@@ -176,7 +183,7 @@ export async function getAllCardsBySetOrdered(
         WHERE c.name LIKE ?
         ORDER BY s.created_at DESC, c.id DESC
         `,
-    [searchPattern]
+    [searchPattern],
   );
 }
 
@@ -187,7 +194,7 @@ export async function getCardById(id: string) {
         FROM cards
         WHERE id = ?
         `,
-    [id]
+    [id],
   );
 }
 
@@ -201,7 +208,7 @@ export async function getCardReprintsByName(cardName: string): Promise<Card[]> {
         WHERE c.name = ?
         ORDER BY s.created_at DESC, c.id DESC
         `,
-    [cardName]
+    [cardName],
   ) as Promise<Card[]>;
 }
 
@@ -212,13 +219,13 @@ export async function getCardsBySet(set: string) {
         FROM cards
         WHERE set = ?
         `,
-    [set]
+    [set],
   );
 }
 
 export async function getCardsBySetAbv(
   setAbv: string,
-  limit?: number
+  limit?: number,
 ): Promise<Card[]> {
   return db.getAllAsync(
     `
@@ -228,12 +235,12 @@ export async function getCardsBySetAbv(
         ORDER BY price DESC
         LIMIT ?
         `,
-    [setAbv, limit ?? 10]
+    [setAbv, limit ?? 10],
   );
 }
 
 export async function getCardsWithMostVariation(
-  limit?: number
+  limit?: number,
 ): Promise<Card[]> {
   return db.getAllAsync(
     `
@@ -242,13 +249,13 @@ export async function getCardsWithMostVariation(
         WHERE price_change IS NOT NULL
         ORDER BY price_change DESC
         LIMIT ${limit ?? 3}
-        `
+        `,
   );
 }
 
 export async function upsertCard(
   card: Card,
-  updatedAt?: number
+  updatedAt?: number,
 ): Promise<void> {
   // Use provided updatedAt or current timestamp
   const timestamp = updatedAt ?? Date.now();
@@ -305,7 +312,7 @@ export async function upsertCard(
       card.price_foil ?? 0,
       card.price_change ?? null,
       timestamp,
-    ]
+    ],
   );
 }
 

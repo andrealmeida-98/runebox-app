@@ -51,6 +51,8 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 const MIN_PANEL_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% minimum
 const MAX_PANEL_HEIGHT = SCREEN_HEIGHT * 0.7; // 70% maximum
+const WINDOW_SIZE = 5; // Cards before and after the current card
+const LOAD_MORE_THRESHOLD = 3; // Trigger load more when this many cards from the end
 
 interface CardPreviewOverlayProps {
   visible: boolean;
@@ -59,6 +61,9 @@ interface CardPreviewOverlayProps {
   onClose: () => void;
   onCardPress?: (card: Card) => void;
   singleCardMode?: boolean; // If true, only shows the single card without carousel
+  onLoadMore?: () => void; // Callback to load more cards
+  hasMore?: boolean; // Whether there are more cards to load
+  loadingMore?: boolean; // Whether cards are currently being loaded
 }
 
 export function CardPreviewOverlay({
@@ -68,9 +73,13 @@ export function CardPreviewOverlay({
   onClose,
   onCardPress,
   singleCardMode = false,
+  onLoadMore,
+  hasMore = false,
+  loadingMore = false,
 }: CardPreviewOverlayProps) {
   const { theme } = useTheme();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const hasTriggeredLoadMore = useRef(false);
 
   // Sync activeIndex with initialIndex when it changes
   useEffect(() => {
@@ -92,10 +101,74 @@ export function CardPreviewOverlay({
     return () => backHandler.remove();
   }, [visible, onClose]);
 
+  // Calculate sliding window for carousel
+  const calculateWindow = (currentIndex: number, totalCards: number) => {
+    // If list is small or single card mode, don't apply sliding window
+    if (totalCards <= WINDOW_SIZE * 2 + 1 || singleCardMode) {
+      return {
+        windowStart: 0,
+        windowEnd: totalCards,
+        localIndex: currentIndex,
+      };
+    }
+
+    // Calculate window boundaries
+    let windowStart = Math.max(0, currentIndex - WINDOW_SIZE);
+    let windowEnd = Math.min(totalCards, currentIndex + WINDOW_SIZE + 1);
+
+    // Adjust window size if at the edges
+    const windowLength = windowEnd - windowStart;
+    const targetLength = WINDOW_SIZE * 2 + 1;
+
+    if (windowLength < targetLength) {
+      if (windowStart === 0) {
+        // At the beginning, extend to the right
+        windowEnd = Math.min(totalCards, windowStart + targetLength);
+      } else if (windowEnd === totalCards) {
+        // At the end, extend to the left
+        windowStart = Math.max(0, windowEnd - targetLength);
+      }
+    }
+
+    // Calculate local index within the window
+    const localIndex = currentIndex - windowStart;
+
+    return { windowStart, windowEnd, localIndex };
+  };
+
+  // Detect when to load more cards
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || loadingMore) {
+      return;
+    }
+
+    // Check if we're approaching the end of the cards list
+    if (activeIndex >= cards.length - LOAD_MORE_THRESHOLD) {
+      if (!hasTriggeredLoadMore.current) {
+        hasTriggeredLoadMore.current = true;
+        onLoadMore();
+      }
+    } else {
+      // Reset the flag when moving away from the end
+      hasTriggeredLoadMore.current = false;
+    }
+  }, [activeIndex, cards.length, onLoadMore, hasMore, loadingMore]);
+
   // Use single card mode for large lists or when explicitly requested
   const effectiveSingleCardMode = singleCardMode || cards.length > 100;
-  const displayCards = effectiveSingleCardMode ? [cards[initialIndex]] : cards;
-  const displayIndex = effectiveSingleCardMode ? 0 : activeIndex;
+  
+  // Calculate window
+  const { windowStart, windowEnd, localIndex } = calculateWindow(
+    effectiveSingleCardMode ? initialIndex : activeIndex,
+    cards.length
+  );
+  
+  // Get cards for the current window
+  const displayCards = effectiveSingleCardMode 
+    ? [cards[initialIndex]] 
+    : cards.slice(windowStart, windowEnd);
+  
+  const displayIndex = effectiveSingleCardMode ? 0 : localIndex;
 
   // Panel drag animation
   const panelHeight = useRef(new Animated.Value(MIN_PANEL_HEIGHT)).current;
@@ -131,7 +204,7 @@ export function CardPreviewOverlay({
     }),
   ).current;
 
-  const activeCard = displayCards[displayIndex];
+  const activeCard = cards[activeIndex] || cards[initialIndex] || cards[0];
 
   // Get window dimensions for RenderHTML
   const { width: windowWidth } = useWindowDimensions();
@@ -354,41 +427,47 @@ export function CardPreviewOverlay({
               }}
               height={CARD_HEIGHT + 60}
               data={displayCards}
-              defaultIndex={initialIndex >= 0 ? initialIndex : 0}
+              defaultIndex={localIndex >= 0 ? localIndex : 0}
               onProgressChange={(_, absoluteProgress) => {
-                const index = Math.round(absoluteProgress);
+                const localIdx = Math.round(absoluteProgress);
+                // Map local index to global index
+                const globalIdx = windowStart + localIdx;
                 if (
-                  index !== activeIndex &&
-                  index >= 0 &&
-                  index < displayCards.length
+                  globalIdx !== activeIndex &&
+                  globalIdx >= 0 &&
+                  globalIdx < cards.length
                 ) {
-                  setActiveIndex(index);
+                  setActiveIndex(globalIdx);
                 }
               }}
-              renderItem={({ item, index }) => (
-                <View style={styles.carouselItem}>
-                  <View
-                    style={[
-                      styles.cardWrapper,
-                      index === activeIndex && styles.cardWrapperActive,
-                    ]}
-                  >
-                    <Image
-                      source={
-                        item.image_url
-                          ? { uri: item.image_url }
-                          : require("@/assets/images/riftbound-card-example.png")
-                      }
+              renderItem={({ item, index }) => {
+                // Map local index to global index for highlighting
+                const globalIdx = windowStart + index;
+                return (
+                  <View style={styles.carouselItem}>
+                    <View
                       style={[
-                        styles.cardImage,
-                        item.card_type === CardType.BATTLEFIELD &&
-                          styles.rotatedImage,
+                        styles.cardWrapper,
+                        globalIdx === activeIndex && styles.cardWrapperActive,
                       ]}
-                      resizeMode="contain"
-                    />
+                    >
+                      <Image
+                        source={
+                          item.image_url
+                            ? { uri: item.image_url }
+                            : require("@/assets/images/riftbound-card-example.png")
+                        }
+                        style={[
+                          styles.cardImage,
+                          item.card_type === CardType.BATTLEFIELD &&
+                            styles.rotatedImage,
+                        ]}
+                        resizeMode="contain"
+                      />
+                    </View>
                   </View>
-                </View>
-              )}
+                );
+              }}
               mode="parallax"
               modeConfig={{
                 parallaxScrollingScale: 0.85,

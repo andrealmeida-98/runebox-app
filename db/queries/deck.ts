@@ -170,17 +170,48 @@ export async function addCardToDeck(
 }
 
 export async function updateDeckCardCount(deckId: string) {
-  const result = await db.getFirstAsync(
+  // Get card count
+  const countResult = await db.getFirstAsync(
     `SELECT SUM(quantity) as total FROM deck_entries WHERE deck_id = ?`,
     [deckId]
   );
 
-  const total = (result as any)?.total || 0;
+  const cardCount = (countResult as any)?.total || 0;
 
-  await db.runAsync(
-    `UPDATE decks SET card_count = ?, updated_at = ? WHERE id = ?`,
-    [total, Date.now(), deckId]
+  // Get total value (sum of card prices * quantity)
+  // Use CASE to get price or price_foil (price is 0 when not available, not NULL)
+  const valueResult = await db.getFirstAsync(
+    `
+    SELECT SUM(
+      (CASE 
+        WHEN c.price > 0 THEN c.price 
+        WHEN c.price_foil > 0 THEN c.price_foil 
+        ELSE 0 
+      END) * de.quantity
+    ) as total_value
+    FROM deck_entries de
+    INNER JOIN cards c ON de.card_id = c.id
+    WHERE de.deck_id = ?
+    `,
+    [deckId]
   );
+
+  const totalValue = (valueResult as any)?.total_value || 0;
+
+  // Update both card count and total value
+  await db.runAsync(
+    `UPDATE decks SET card_count = ?, total_value = ?, updated_at = ? WHERE id = ?`,
+    [cardCount, totalValue, Date.now(), deckId]
+  );
+}
+
+// Recalculate all deck values (useful after price updates or logic changes)
+export async function recalculateAllDeckValues() {
+  const allDecks = await getAllDecks();
+  
+  for (const deck of allDecks) {
+    await updateDeckCardCount((deck as any).id);
+  }
 }
 
 export async function updateCardQuantityInDeck(

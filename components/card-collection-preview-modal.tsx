@@ -18,10 +18,12 @@ import { useTheme } from "@/contexts/theme-context";
 import { Card, CardType } from "@/interfaces/card";
 import { EditCardModal } from "./edit-card-modal";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 const PANEL_HEIGHT = 120;
+// Calculate dynamic top margin based on screen height
+const CAROUSEL_TOP_MARGIN = Math.max(80, SCREEN_HEIGHT * 0.1);
 
 interface CardCollectionPreviewModalProps {
   visible: boolean;
@@ -122,7 +124,7 @@ export function CardCollectionPreviewModal({
         </Pressable>
 
         {/* Card Carousel */}
-        <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
+        <View style={styles.carouselWrapper}>
           <Carousel
             key={`carousel-${initialIndex}`}
             loop={false}
@@ -132,7 +134,7 @@ export function CardCollectionPreviewModal({
               justifyContent: "center",
               alignItems: "center",
             }}
-            height={CARD_HEIGHT + 60}
+            height={CARD_HEIGHT + 40}
             data={cards}
             defaultIndex={initialIndex}
             onProgressChange={(_, absoluteProgress) => {
@@ -176,77 +178,77 @@ export function CardCollectionPreviewModal({
           />
         </View>
 
-        {/* Action Buttons - Button Group below card */}
+        {/* Action Buttons - Positioned above Card Details Panel */}
         <View style={styles.buttonGroup}>
-          {onEdit && collectionId && (
+            {onEdit && collectionId && (
+              <Pressable
+                style={[styles.groupButton, styles.groupButtonLeft]}
+                onPress={() => {
+                  setShowEditModal(true);
+                }}
+              >
+                <FontAwesome name="edit" size={18} color="#fff" />
+                <Text style={styles.groupButtonText}>Edit</Text>
+              </Pressable>
+            )}
+            {onAddToCollection && (
+              <Pressable
+                style={styles.groupButton}
+                onPress={() => {
+                  onAddToCollection(activeCard);
+                  onClose();
+                }}
+              >
+                <FontAwesome name="plus" size={18} color="#fff" />
+                <Text style={styles.groupButtonText}>Add to Deck</Text>
+              </Pressable>
+            )}
+            {onViewDetails && (
+              <Pressable
+                style={styles.groupButton}
+                onPress={() => {
+                  onViewDetails(activeCard);
+                  onClose();
+                }}
+              >
+                <FontAwesome name="info-circle" size={18} color="#fff" />
+                <Text style={styles.groupButtonText}>Details</Text>
+              </Pressable>
+            )}
+            {onRemove && (
+              <Pressable
+                style={[styles.groupButton, styles.groupButtonDanger]}
+                onPress={() => {
+                  onRemove(activeCard);
+                  onClose();
+                }}
+              >
+                <FontAwesome name="trash" size={18} color="#fff" />
+                <Text style={styles.groupButtonText}>Remove</Text>
+              </Pressable>
+            )}
             <Pressable
-              style={[styles.groupButton, styles.groupButtonLeft]}
-              onPress={() => {
-                setShowEditModal(true);
-              }}
-            >
-              <FontAwesome name="edit" size={18} color="#fff" />
-              <Text style={styles.groupButtonText}>Edit</Text>
-            </Pressable>
-          )}
-          {onAddToCollection && (
-            <Pressable
-              style={styles.groupButton}
-              onPress={() => {
-                onAddToCollection(activeCard);
-                onClose();
-              }}
-            >
-              <FontAwesome name="plus" size={18} color="#fff" />
-              <Text style={styles.groupButtonText}>Add to Deck</Text>
-            </Pressable>
-          )}
-          {onViewDetails && (
-            <Pressable
-              style={styles.groupButton}
-              onPress={() => {
-                onViewDetails(activeCard);
-                onClose();
-              }}
-            >
-              <FontAwesome name="info-circle" size={18} color="#fff" />
-              <Text style={styles.groupButtonText}>Details</Text>
-            </Pressable>
-          )}
-          {onRemove && (
-            <Pressable
-              style={[styles.groupButton, styles.groupButtonDanger]}
-              onPress={() => {
-                onRemove(activeCard);
-                onClose();
-              }}
-            >
-              <FontAwesome name="trash" size={18} color="#fff" />
-              <Text style={styles.groupButtonText}>Remove</Text>
-            </Pressable>
-          )}
-          <Pressable
-            style={[
-              styles.groupButton,
-              styles.groupButtonRight,
-              styles.groupButtonContrary,
-            ]}
-            onPress={onClose}
-          >
-            <FontAwesome
-              name="times"
-              size={18}
-              color="rgba(59, 130, 246, 0.9)"
-            />
-            <Text
               style={[
-                styles.groupButtonText,
-                { color: "rgba(59, 130, 246, 0.9)" },
+                styles.groupButton,
+                styles.groupButtonRight,
+                styles.groupButtonContrary,
               ]}
+              onPress={onClose}
             >
-              Close
-            </Text>
-          </Pressable>
+              <FontAwesome
+                name="times"
+                size={18}
+                color="rgba(59, 130, 246, 0.9)"
+              />
+              <Text
+                style={[
+                  styles.groupButtonText,
+                  { color: "rgba(59, 130, 246, 0.9)" },
+                ]}
+              >
+                Close
+              </Text>
+            </Pressable>
         </View>
 
         {/* Card Details Panel */}
@@ -335,7 +337,7 @@ const createStyles = (theme: "light" | "dark") => {
     },
     closeButton: {
       position: "absolute",
-      top: 60,
+      top: 50,
       right: 20,
       width: 44,
       height: 44,
@@ -348,7 +350,12 @@ const createStyles = (theme: "light" | "dark") => {
       borderColor: "rgba(255, 255, 255, 0.2)",
     },
     carouselWrapper: {
-      marginTop: 250,
+      position: "absolute",
+      top: "50%",
+      left: 0,
+      right: 0,
+      transform: [{ translateY: -(CARD_HEIGHT / 2 + 20) }],
+      height: CARD_HEIGHT + 40,
       alignItems: "center",
       justifyContent: "center",
     },
@@ -429,15 +436,18 @@ const createStyles = (theme: "light" | "dark") => {
       elevation: 16,
     },
     buttonGroup: {
+      position: "absolute",
+      bottom: PANEL_HEIGHT + 8,
+      left: 24,
+      right: 24,
       flexDirection: "row",
-      marginTop: 10,
-      marginHorizontal: 32,
       overflow: "hidden",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,
       shadowRadius: 4,
       elevation: 5,
+      borderRadius: 12,
     },
     groupButton: {
       flex: 1,

@@ -5,6 +5,7 @@ import {
   createCollection,
   getAllCollectionsWithStats,
 } from "@/db/queries/collection";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { useUserId } from "@/hooks/use-user-id";
 import {
   CardCollection,
@@ -26,6 +27,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CollectionScreen() {
+  useAndroidBackHandler(undefined, true);
+
   const { theme } = useTheme();
   const router = useRouter();
   const { userId } = useUserId();

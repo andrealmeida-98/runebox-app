@@ -1,5 +1,5 @@
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,11 +23,14 @@ import {
   getDecksByUser,
   getLegendCardForDeck,
 } from "@/db/queries/deck";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { useUserId } from "@/hooks/use-user-id";
 import { Card } from "@/interfaces/card";
 import { Deck } from "@/interfaces/deck";
 
 export default function DecksScreen() {
+  useAndroidBackHandler(undefined, true);
+
   const { userId, loading: userLoading } = useUserId();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [deckLegends, setDeckLegends] = useState<Record<string, Card | null>>(
@@ -48,6 +51,7 @@ export default function DecksScreen() {
 
     try {
       setLoading(true);
+
       const userDecks = (await getDecksByUser(userId)) as Deck[];
       setDecks(userDecks);
 
@@ -118,6 +122,15 @@ export default function DecksScreen() {
     }
   }, [userId, loadDecks]);
 
+  // Reload decks when screen comes into focus (e.g., when navigating back from deck-detail)
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) {
+        loadDecks();
+      }
+    }, [userId, loadDecks]),
+  );
+
   if (userLoading || loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -164,7 +177,6 @@ export default function DecksScreen() {
         }
         renderItem={({ item }) => {
           const legendCard = deckLegends[item.id];
-          console.log("deck", item);
           return (
             <Pressable
               style={styles.deckCard}
@@ -308,19 +320,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#ffffff",
   },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#3b82f6",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#3b82f6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
   listContainer: {
     padding: 12,
   },
@@ -361,11 +360,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#ffffff",
-  },
-  deckSubtitle: {
-    fontSize: 14,
-    color: "#94a3b8",
-    fontWeight: "600",
   },
   deckStats: {
     flexDirection: "column",

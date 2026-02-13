@@ -6,6 +6,7 @@ export interface Deck {
   description?: string;
   cardCount: number;
   totalValue: number;
+  updatedAt: number;
 }
 
 // Individual card entries in a deck

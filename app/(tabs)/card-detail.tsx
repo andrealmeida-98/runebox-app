@@ -38,6 +38,7 @@ import {
 import { Colors } from "@/constants/theme";
 import { useTheme } from "@/contexts/theme-context";
 import { db } from "@/db/database";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -54,6 +55,10 @@ export default function CardDetailScreen() {
   const cardIdsStr = typeof cardIds === "string" ? cardIds : "";
   const collectionIdStr = typeof collectionId === "string" ? collectionId : "";
 
+  // Determine fallback route based on context
+  const fallbackRoute = collectionIdStr ? undefined : "/search";
+  useAndroidBackHandler(fallbackRoute);
+
   const [cards, setCards] = useState<Card[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -66,7 +71,7 @@ export default function CardDetailScreen() {
       const placeholders = orderedCardIds.map(() => "?").join(",");
       const cardsData = await db.getAllAsync(
         `SELECT * FROM cards WHERE id IN (${placeholders})`,
-        orderedCardIds
+        orderedCardIds,
       );
 
       // Sort cards in the same order as the IDs
@@ -102,7 +107,7 @@ export default function CardDetailScreen() {
       () => {
         handleBack();
         return true;
-      }
+      },
     );
 
     return () => backHandler.remove();
@@ -139,7 +144,7 @@ export default function CardDetailScreen() {
           useNativeDriver: false,
         }).start();
       },
-    })
+    }),
   ).current;
 
   const { width: windowWidth } = useWindowDimensions();
@@ -150,11 +155,11 @@ export default function CardDetailScreen() {
     let processed = text
       .replace(
         /:rb_(energy_\d+|exhaust|might):/g,
-        '<span class="icon" data-icon="rb_$1"></span>'
+        '<span class="icon" data-icon="rb_$1"></span>',
       )
       .replace(
         /:rb_rune_(calm|chaos|fury|mind|order|body|rainbow):/g,
-        '<span class="icon" data-icon="rb_rune_$1"></span>'
+        '<span class="icon" data-icon="rb_rune_$1"></span>',
       )
       .replace(/\[([^\]]+)\]/g, "<strong>$1</strong>")
       .replace(/<ul>(<br\s*\/?>)+/g, "<ul>")
@@ -257,8 +262,8 @@ export default function CardDetailScreen() {
     activeCard.price && activeCard.price > 0
       ? activeCard.price
       : activeCard.price_foil && activeCard.price_foil > 0
-      ? activeCard.price_foil
-      : 0;
+        ? activeCard.price_foil
+        : 0;
 
   const styles = createStyles(theme);
   console.log("Rendering CardDetailScreen for card:", cardIds);

@@ -6,6 +6,7 @@ import {
   getCardsBySetOrderedWithPagination,
 } from "@/db/queries/cards";
 import { getSets } from "@/db/queries/sets";
+import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardDomain, CardRarity, CardType } from "@/interfaces/card";
 import { Set } from "@/interfaces/set";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +17,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AllCards() {
+  useAndroidBackHandler(undefined, true);
+
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"cards" | "expansions">("cards");
   const [cards, setCards] = useState<Card[]>([]);
@@ -40,42 +43,40 @@ export default function AllCards() {
   // Convert filters array to CardFilters object
   const getActiveFiltersObject = useCallback((): CardFilters => {
     const filters: CardFilters = {};
-    console.log(
-      "Building filters object - Starting with empty filters:",
-      filters,
-    );
 
     const rarityFilter = activeFilters.find((f) => f.name === "rarity");
     if (rarityFilter?.value) {
-      filters.rarity = rarityFilter.value;
-      console.log(
-        "Applied rarity filter:",
-        { rarity: filters.rarity },
-        "Current filters:",
-        filters,
-      );
+      // Support both single value and array
+      filters.rarity = Array.isArray(rarityFilter.value)
+        ? rarityFilter.value.length > 0
+          ? rarityFilter.value
+          : undefined
+        : [rarityFilter.value];
     }
 
     const typeFilter = activeFilters.find((f) => f.name === "cardType");
     if (typeFilter?.value) {
-      filters.cardType = typeFilter.value;
-      console.log(
-        "Applied cardType filter:",
-        { cardType: filters.cardType },
-        "Current filters:",
-        filters,
-      );
+      // Support both single value and array
+      filters.cardType = Array.isArray(typeFilter.value)
+        ? typeFilter.value.length > 0
+          ? typeFilter.value
+          : undefined
+        : [typeFilter.value];
     }
 
     const setFilter = activeFilters.find((f) => f.name === "setAbv");
     if (setFilter?.value) {
-      filters.setAbv = setFilter.value;
-      console.log(
-        "Applied setAbv filter:",
-        { setAbv: filters.setAbv },
-        "Current filters:",
-        filters,
-      );
+      // Support both single value and array
+      const setValues = Array.isArray(setFilter.value)
+        ? setFilter.value
+        : [setFilter.value];
+
+      // Map setName to setAbv
+      const setAbvs = setValues
+        .map((setName) => sets.find((s) => s.setName === setName)?.setAbv)
+        .filter((abv): abv is string => Boolean(abv));
+
+      filters.setAbv = setAbvs.length > 0 ? setAbvs : undefined;
     }
 
     const energyFilter = activeFilters.find((f) => f.name === "energy");
@@ -84,12 +85,6 @@ export default function AllCards() {
         value: energyFilter.value,
         operator: energyFilter.operator || ">=",
       };
-      console.log(
-        "Applied energy filter:",
-        { energy: filters.energy },
-        "Current filters:",
-        filters,
-      );
     }
 
     const mightFilter = activeFilters.find((f) => f.name === "might");
@@ -98,12 +93,6 @@ export default function AllCards() {
         value: mightFilter.value,
         operator: mightFilter.operator || ">=",
       };
-      console.log(
-        "Applied might filter:",
-        { might: filters.might },
-        "Current filters:",
-        filters,
-      );
     }
 
     const domainFilter = activeFilters.find((f) => f.name === "domain");
@@ -114,17 +103,9 @@ export default function AllCards() {
     ) {
       filters.domain = domainFilter.value;
       filters.domainOperator = domainFilter.domainOperator || "OR";
-      console.log(
-        "Applied domain filter:",
-        { domain: filters.domain, domainOperator: filters.domainOperator },
-        "Current filters:",
-        filters,
-      );
     }
-
-    console.log("Final filters object:", filters);
     return filters;
-  }, [activeFilters]);
+  }, [activeFilters, sets]);
 
   // Fetch cards from local database with pagination
   const fetchCards = useCallback(
@@ -170,7 +151,7 @@ export default function AllCards() {
     setCards([]);
     setHasMore(true);
     fetchCards(1, searchQuery);
-  }, [searchQuery, activeFilters]);
+  }, [searchQuery, activeFilters, fetchCards]);
 
   // Load more cards when reaching the bottom
   const loadMoreCards = useCallback(() => {
@@ -244,8 +225,8 @@ export default function AllCards() {
         filters={[
           {
             name: "rarity",
-            type: "select",
-            value: activeFilters.find((f) => f.name === "rarity")?.value || "",
+            type: "multiselect",
+            value: activeFilters.find((f) => f.name === "rarity")?.value || [],
             label: "Rarity",
             options: [
               capitalize(CardRarity.COMMON),
@@ -257,16 +238,16 @@ export default function AllCards() {
           },
           {
             name: "cardType",
-            type: "select",
+            type: "multiselect",
             value:
-              activeFilters.find((f) => f.name === "cardType")?.value || "",
+              activeFilters.find((f) => f.name === "cardType")?.value || [],
             label: "Card Type",
             options: Object.values(CardType),
           },
           {
             name: "setAbv",
-            type: "select",
-            value: activeFilters.find((f) => f.name === "setAbv")?.value || "",
+            type: "select-with-chips",
+            value: activeFilters.find((f) => f.name === "setAbv")?.value || [],
             label: "Set",
             options: sets.map((s) => s.setName),
           },
@@ -308,11 +289,6 @@ export default function AllCards() {
           setActiveFilters(updatedFilters);
         }}
       />
-      {searchQuery.length > 0 && (
-        <TouchableOpacity onPress={() => setSearchQuery("")}>
-          <Ionicons name="close-circle" size={20} color="#666" />
-        </TouchableOpacity>
-      )}
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
@@ -402,6 +378,9 @@ export default function AllCards() {
         initialIndex={previewIndex}
         onClose={handleClosePreview}
         singleCardMode={cards.length > 50} // Enable single card mode for large lists
+        onLoadMore={loadMoreCards}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
       />
     </SafeAreaView>
   );
@@ -420,31 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: "#ffffff",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 12,
-    marginTop: 24,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
-    color: "#888",
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#fff",
-    paddingVertical: 12,
   },
   tabContainer: {
     flexDirection: "row",
@@ -481,25 +435,6 @@ const styles = StyleSheet.create({
   resultsText: {
     color: "#888",
     fontSize: 14,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  comingSoonText: {
-    textAlign: "center",
-    marginTop: 16,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#888",
-  },
-  comingSoonSubtext: {
-    textAlign: "center",
-    marginTop: 8,
-    fontSize: 14,
-    color: "#666",
   },
   setsContainer: {
     flex: 1,
