@@ -31,8 +31,10 @@ import { useResizePlugin } from "vision-camera-resize-plugin";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useCurrency } from "@/contexts/currency-context";
 import { useCardClassifier } from "@/hooks/use-card-classifier";
 import { useCardDetector } from "@/hooks/use-card-detect-model";
+import { formatPrice } from "@/utils/currency-utils";
 import { DetectedCard, classifyCardSync } from "@/utils/model-utils";
 
 // Process every N frames (30 = ~1x per second at 30fps)
@@ -41,6 +43,7 @@ const CONFIDENCE_THRESHOLD = 0.75;
 
 export default function ScanScreen() {
   const isFocused = useIsFocused();
+  const { currency } = useCurrency();
   const { hasPermission, requestPermission } = useCameraPermission();
   const {
     model: detectorModel,
@@ -167,7 +170,7 @@ export default function ScanScreen() {
                   id: Date.now().toString(),
                   cardName: cardId,
                   cardSet: "Unknown Set • #000",
-                  price: "$0.00",
+                  price: formatPrice(0, currency),
                   quantity: 1,
                   timestamp: new Date(),
                 },
@@ -646,15 +649,17 @@ export default function ScanScreen() {
               <View style={styles.historyHeader}>
                 <Text style={styles.historyTitle}>Scan History</Text>
                 <Text style={styles.historyTotal}>
-                  Total: €
-                  {scanHistory
-                    .reduce(
+                  Total:{" "}
+                  {formatPrice(
+                    scanHistory.reduce(
                       (sum, item) =>
                         sum +
-                        parseFloat(item.price.replace("$", "")) * item.quantity,
+                        parseFloat(item.price.replace(/[^0-9.]/g, "")) *
+                          item.quantity,
                       0
-                    )
-                    .toFixed(2)}
+                    ),
+                    currency
+                  )}
                 </Text>
               </View>
               <ScrollView style={styles.historyList}>

@@ -40,6 +40,13 @@ export default function AllCards() {
   const [previewCards, setPreviewCards] = useState<Card[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
+  // Update previewCards when cards change (to add newly loaded cards to the carousel)
+  useEffect(() => {
+    if (previewVisible) {
+      setPreviewCards(cards);
+    }
+  }, [cards, previewVisible]);
+
   // Convert filters array to CardFilters object
   const getActiveFiltersObject = useCallback((): CardFilters => {
     const filters: CardFilters = {};
@@ -124,7 +131,7 @@ export default function AllCards() {
         const result = (await getCardsBySetOrderedWithPagination(
           query || undefined,
           page,
-          finalFilters,
+          finalFilters
         )) as Card[];
 
         if (page === 1) {
@@ -142,7 +149,7 @@ export default function AllCards() {
         setLoadingMore(false);
       }
     },
-    [getActiveFiltersObject],
+    [getActiveFiltersObject]
   );
 
   // Initial load and reload when filters change
@@ -170,7 +177,7 @@ export default function AllCards() {
       setPreviewIndex(cardIndex >= 0 ? cardIndex : 0);
       setPreviewVisible(true);
     },
-    [cards],
+    [cards]
   );
 
   const handleClosePreview = useCallback(() => {
@@ -188,7 +195,7 @@ export default function AllCards() {
         },
       });
     },
-    [router],
+    [router]
   );
 
   // Helper to capitalize first letter
@@ -366,6 +373,7 @@ export default function AllCards() {
           numColumns={3}
           emptyMessage="No cards found"
           emptySubtext="Try adjusting your search or filters"
+          showPrice={true}
         />
       ) : (
         renderSetsList()
@@ -377,7 +385,6 @@ export default function AllCards() {
         cards={previewCards}
         initialIndex={previewIndex}
         onClose={handleClosePreview}
-        singleCardMode={cards.length > 50} // Enable single card mode for large lists
         onLoadMore={loadMoreCards}
         hasMore={hasMore}
         loadingMore={loadingMore}

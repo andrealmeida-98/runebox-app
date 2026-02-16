@@ -19,6 +19,7 @@ import RenderHTML from "react-native-render-html";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Colors } from "@/constants/theme";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 
 import {
@@ -44,6 +45,7 @@ import {
   UncommonIcon,
 } from "@/assets/icons";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -51,7 +53,6 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_HEIGHT = CARD_WIDTH * 1.4;
 const MIN_PANEL_HEIGHT = SCREEN_HEIGHT * 0.4; // 40% minimum
 const MAX_PANEL_HEIGHT = SCREEN_HEIGHT * 0.7; // 70% maximum
-const WINDOW_SIZE = 5; // Cards before and after the current card
 const LOAD_MORE_THRESHOLD = 3; // Trigger load more when this many cards from the end
 
 interface CardPreviewOverlayProps {
@@ -60,10 +61,10 @@ interface CardPreviewOverlayProps {
   initialIndex: number;
   onClose: () => void;
   onCardPress?: (card: Card) => void;
-  singleCardMode?: boolean; // If true, only shows the single card without carousel
   onLoadMore?: () => void; // Callback to load more cards
   hasMore?: boolean; // Whether there are more cards to load
   loadingMore?: boolean; // Whether cards are currently being loaded
+  onCardSwipe?: (index: number) => void; // Callback when a card is swiped into view
 }
 
 export function CardPreviewOverlay({
@@ -71,20 +72,23 @@ export function CardPreviewOverlay({
   cards,
   initialIndex,
   onClose,
-  onCardPress,
-  singleCardMode = false,
   onLoadMore,
   hasMore = false,
   loadingMore = false,
 }: CardPreviewOverlayProps) {
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const hasTriggeredLoadMore = useRef(false);
+  const activeIndexRef = useRef(initialIndex);
 
-  // Sync activeIndex with initialIndex when it changes
+  // Sync activeIndex with initialIndex when visible or initialIndex changes
   useEffect(() => {
-    setActiveIndex(initialIndex);
-  }, [initialIndex]);
+    if (visible) {
+      setActiveIndex(initialIndex);
+      activeIndexRef.current = initialIndex;
+    }
+  }, [initialIndex, visible]);
 
   // Handle Android back button
   useEffect(() => {
@@ -95,46 +99,11 @@ export function CardPreviewOverlay({
       () => {
         onClose();
         return true; // Prevent default back behavior
-      },
+      }
     );
 
     return () => backHandler.remove();
   }, [visible, onClose]);
-
-  // Calculate sliding window for carousel
-  const calculateWindow = (currentIndex: number, totalCards: number) => {
-    // If list is small or single card mode, don't apply sliding window
-    if (totalCards <= WINDOW_SIZE * 2 + 1 || singleCardMode) {
-      return {
-        windowStart: 0,
-        windowEnd: totalCards,
-        localIndex: currentIndex,
-      };
-    }
-
-    // Calculate window boundaries
-    let windowStart = Math.max(0, currentIndex - WINDOW_SIZE);
-    let windowEnd = Math.min(totalCards, currentIndex + WINDOW_SIZE + 1);
-
-    // Adjust window size if at the edges
-    const windowLength = windowEnd - windowStart;
-    const targetLength = WINDOW_SIZE * 2 + 1;
-
-    if (windowLength < targetLength) {
-      if (windowStart === 0) {
-        // At the beginning, extend to the right
-        windowEnd = Math.min(totalCards, windowStart + targetLength);
-      } else if (windowEnd === totalCards) {
-        // At the end, extend to the left
-        windowStart = Math.max(0, windowEnd - targetLength);
-      }
-    }
-
-    // Calculate local index within the window
-    const localIndex = currentIndex - windowStart;
-
-    return { windowStart, windowEnd, localIndex };
-  };
 
   // Detect when to load more cards
   useEffect(() => {
@@ -153,22 +122,6 @@ export function CardPreviewOverlay({
       hasTriggeredLoadMore.current = false;
     }
   }, [activeIndex, cards.length, onLoadMore, hasMore, loadingMore]);
-
-  // Use single card mode for large lists or when explicitly requested
-  const effectiveSingleCardMode = singleCardMode || cards.length > 100;
-  
-  // Calculate window
-  const { windowStart, windowEnd, localIndex } = calculateWindow(
-    effectiveSingleCardMode ? initialIndex : activeIndex,
-    cards.length
-  );
-  
-  // Get cards for the current window
-  const displayCards = effectiveSingleCardMode 
-    ? [cards[initialIndex]] 
-    : cards.slice(windowStart, windowEnd);
-  
-  const displayIndex = effectiveSingleCardMode ? 0 : localIndex;
 
   // Panel drag animation
   const panelHeight = useRef(new Animated.Value(MIN_PANEL_HEIGHT)).current;
@@ -201,7 +154,7 @@ export function CardPreviewOverlay({
           useNativeDriver: false,
         }).start();
       },
-    }),
+    })
   ).current;
 
   const activeCard = cards[activeIndex] || cards[initialIndex] || cards[0];
@@ -217,11 +170,11 @@ export function CardPreviewOverlay({
     let processed = text
       .replace(
         /:rb_(energy_\d+|exhaust|might):/g,
-        '<span class="icon" data-icon="rb_$1"></span>',
+        '<span class="icon" data-icon="rb_$1"></span>'
       )
       .replace(
         /:rb_rune_(calm|chaos|fury|mind|order|body|rainbow):/g,
-        '<span class="icon" data-icon="rb_rune_$1"></span>',
+        '<span class="icon" data-icon="rb_rune_$1"></span>'
       )
       // Replace [text] with <strong>text</strong>
       .replace(/\[([^\]]+)\]/g, "<strong>$1</strong>")
@@ -362,8 +315,8 @@ export function CardPreviewOverlay({
     activeCard.price && activeCard.price > 0
       ? activeCard.price
       : activeCard.price_foil && activeCard.price_foil > 0
-        ? activeCard.price_foil
-        : 0;
+      ? activeCard.price_foil
+      : 0;
 
   const styles = createStyles(theme);
 
@@ -392,90 +345,64 @@ export function CardPreviewOverlay({
           </Pressable>
         </View>
 
-        {/* Carousel or Single Card */}
-        {effectiveSingleCardMode ? (
-          // Single Card View
-          <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
-            <View style={styles.carouselItem}>
-              <View style={[styles.cardWrapper, styles.cardWrapperActive]}>
-                <Image
-                  source={
-                    activeCard.image_url
-                      ? { uri: activeCard.image_url }
-                      : require("@/assets/images/back-image.png")
-                  }
-                  style={[
-                    styles.cardImage,
-                    activeCard.card_type === CardType.BATTLEFIELD &&
-                      styles.rotatedImage,
-                  ]}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
-          </View>
-        ) : (
-          // Carousel View
-          <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
-            <Carousel
-              loop={false}
-              width={CARD_WIDTH}
-              style={{
-                width: SCREEN_WIDTH,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-              height={CARD_HEIGHT + 60}
-              data={displayCards}
-              defaultIndex={localIndex >= 0 ? localIndex : 0}
-              onProgressChange={(_, absoluteProgress) => {
-                const localIdx = Math.round(absoluteProgress);
-                // Map local index to global index
-                const globalIdx = windowStart + localIdx;
-                if (
-                  globalIdx !== activeIndex &&
-                  globalIdx >= 0 &&
-                  globalIdx < cards.length
-                ) {
-                  setActiveIndex(globalIdx);
-                }
-              }}
-              renderItem={({ item, index }) => {
-                // Map local index to global index for highlighting
-                const globalIdx = windowStart + index;
-                return (
-                  <View style={styles.carouselItem}>
-                    <View
+        {/* Carousel */}
+        <View style={[styles.carouselWrapper, { height: CARD_HEIGHT + 60 }]}>
+          <Carousel
+            loop={false}
+            width={CARD_WIDTH}
+            style={{
+              width: SCREEN_WIDTH,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            height={CARD_HEIGHT + 60}
+            data={cards}
+            defaultIndex={initialIndex}
+            windowSize={3}
+            onProgressChange={(_, absoluteProgress) => {
+              const idx = Math.round(absoluteProgress);
+              if (
+                idx !== activeIndexRef.current &&
+                idx >= 0 &&
+                idx < cards.length
+              ) {
+                activeIndexRef.current = idx;
+                setActiveIndex(idx);
+              }
+            }}
+            renderItem={({ item, index }) => {
+              return (
+                <View style={styles.carouselItem}>
+                  <View
+                    style={[
+                      styles.cardWrapper,
+                      index === activeIndex && styles.cardWrapperActive,
+                    ]}
+                  >
+                    <Image
+                      source={
+                        item.image_url
+                          ? { uri: item.image_url }
+                          : require("@/assets/images/riftbound-card-example.png")
+                      }
                       style={[
-                        styles.cardWrapper,
-                        globalIdx === activeIndex && styles.cardWrapperActive,
+                        styles.cardImage,
+                        item.card_type === CardType.BATTLEFIELD &&
+                          styles.rotatedImage,
                       ]}
-                    >
-                      <Image
-                        source={
-                          item.image_url
-                            ? { uri: item.image_url }
-                            : require("@/assets/images/riftbound-card-example.png")
-                        }
-                        style={[
-                          styles.cardImage,
-                          item.card_type === CardType.BATTLEFIELD &&
-                            styles.rotatedImage,
-                        ]}
-                        resizeMode="contain"
-                      />
-                    </View>
+                      resizeMode="contain"
+                    />
                   </View>
-                );
-              }}
-              mode="parallax"
-              modeConfig={{
-                parallaxScrollingScale: 0.85,
-                parallaxScrollingOffset: 35,
-              }}
-            />
-          </View>
-        )}
+                </View>
+              );
+            }}
+            mode="parallax"
+            modeConfig={{
+              parallaxScrollingScale: 0.85,
+              parallaxScrollingOffset: 35,
+            }}
+          />
+        </View>
 
         {/* Card Details Panel */}
         <Animated.View
@@ -510,7 +437,7 @@ export function CardPreviewOverlay({
 
                   <View style={styles.priceWithChange}>
                     <Text style={styles.priceValue}>
-                      €{cardPrice.toFixed(2)}
+                      {formatPrice(cardPrice, currency)}
                     </Text>
                     {activeCard.price_change !== undefined && (
                       <View
@@ -556,7 +483,7 @@ export function CardPreviewOverlay({
                 </View>
               </View>
             </View>
-            w
+
             <View style={styles.statsGrid}>
               <View style={styles.statCard}>
                 <View
@@ -685,7 +612,7 @@ const createStyles = (theme: "light" | "dark") => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
     },
     header: {
       flexDirection: "row",

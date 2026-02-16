@@ -32,6 +32,13 @@ export default function SetDetailScreen() {
   const [previewCards, setPreviewCards] = useState<Card[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
 
+  // Update previewCards when cards change (to add newly loaded cards to the carousel)
+  useEffect(() => {
+    if (previewVisible) {
+      setPreviewCards(cards);
+    }
+  }, [cards, previewVisible]);
+
   // Fetch cards from the specific set
   const fetchCards = useCallback(
     async (page: number, query: string = "") => {
@@ -43,12 +50,12 @@ export default function SetDetailScreen() {
         }
 
         // Filter by the specific set
-        const filters = { setAbv: setAbvStr };
+        const filters = { setAbv: [setAbvStr] };
 
         const result = (await getCardsBySetOrderedWithPagination(
           query || undefined,
           page,
-          filters,
+          filters
         )) as Card[];
 
         if (page === 1) {
@@ -66,7 +73,7 @@ export default function SetDetailScreen() {
         setLoadingMore(false);
       }
     },
-    [setAbvStr],
+    [setAbvStr]
   );
 
   // Initial load and reload when search changes
@@ -94,7 +101,7 @@ export default function SetDetailScreen() {
       setPreviewIndex(cardIndex >= 0 ? cardIndex : 0);
       setPreviewVisible(true);
     },
-    [cards],
+    [cards]
   );
 
   const handleClosePreview = useCallback(() => {
@@ -162,7 +169,6 @@ export default function SetDetailScreen() {
         cards={previewCards}
         initialIndex={previewIndex}
         onClose={handleClosePreview}
-        singleCardMode={cards.length > 50}
         onLoadMore={loadMoreCards}
         hasMore={hasMore}
         loadingMore={loadingMore}

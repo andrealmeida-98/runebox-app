@@ -1,5 +1,6 @@
 import { BottomDrawer } from "@/components/bottom-drawer";
 import { Button } from "@/components/button";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 import {
   createCollection,
@@ -12,6 +13,7 @@ import {
   CollectionColor,
   CollectionIcon,
 } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 import { getThemeColors } from "@/utils/theme-utils";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -30,6 +32,7 @@ export default function CollectionScreen() {
   useAndroidBackHandler(undefined, true);
 
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const router = useRouter();
   const { userId } = useUserId();
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,10 +40,10 @@ export default function CollectionScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState<CollectionIcon>(
-    CollectionIcon.STAR,
+    CollectionIcon.STAR
   );
   const [selectedColor, setSelectedColor] = useState<CollectionColor>(
-    CollectionColor.BLUE,
+    CollectionColor.BLUE
   );
   const [showSort, setShowSort] = useState(false);
   const [selectedSort, setSelectedSort] = useState<string>("name-asc");
@@ -79,18 +82,18 @@ export default function CollectionScreen() {
 
   const totalValue = collections.reduce(
     (sum, collection) => sum + collection.totalValue,
-    0,
+    0
   );
 
   useFocusEffect(
     useCallback(() => {
       loadCollections();
-    }, [loadCollections]),
+    }, [loadCollections])
   );
 
   const filteredCollections = collections
     .filter((collection) =>
-      collection.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      collection.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
       switch (selectedSort) {
@@ -137,7 +140,7 @@ export default function CollectionScreen() {
           TOTAL VALUE
         </Text>
         <Text style={[styles.totalValueAmount, { color: textColor }]}>
-          ${totalValue.toFixed(2)}
+          {formatPrice(totalValue, currency)}
         </Text>
 
         {/* Progress Bar */}
@@ -208,10 +211,10 @@ export default function CollectionScreen() {
           {selectedSort === "name-asc"
             ? "Name (A-Z)"
             : selectedSort === "name-desc"
-              ? "Name (Z-A)"
-              : selectedSort === "price"
-                ? "Price"
-                : "Cards"}
+            ? "Name (Z-A)"
+            : selectedSort === "price"
+            ? "Price"
+            : "Cards"}
         </Button>
         <Button
           variant="primary"
@@ -244,7 +247,7 @@ export default function CollectionScreen() {
                 router.push(
                   `/collection-detail?id=${
                     collection.id
-                  }&name=${encodeURIComponent(collection.name)}`,
+                  }&name=${encodeURIComponent(collection.name)}`
                 )
               }
             >
@@ -334,7 +337,7 @@ export default function CollectionScreen() {
                       backgroundColor: inputBackground,
                       borderColor:
                         selectedIcon === icon
-                          ? (selectedColor ?? "#22c55e")
+                          ? selectedColor ?? "#22c55e"
                           : borderColor,
                     },
                   ]}
@@ -345,7 +348,7 @@ export default function CollectionScreen() {
                     size={24}
                     color={
                       selectedIcon === icon
-                        ? (selectedColor ?? textColor)
+                        ? selectedColor ?? textColor
                         : secondaryTextColor
                     }
                   />

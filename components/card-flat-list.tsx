@@ -20,6 +20,7 @@ interface CardFlatListProps {
   numColumns?: number;
   emptyMessage?: string;
   emptySubtext?: string;
+  showPrice?: boolean;
 }
 
 export function CardFlatList({
@@ -31,6 +32,7 @@ export function CardFlatList({
   numColumns = 3,
   emptyMessage = "No cards found",
   emptySubtext = "Try adjusting your search",
+  showPrice = false,
 }: CardFlatListProps) {
   const { width } = useWindowDimensions();
   const cardWidth = (width - 40 - (numColumns - 1) * 16) / numColumns;
@@ -42,7 +44,7 @@ export function CardFlatList({
         cardWidth={cardWidth}
         cardHeight={cardWidth * 1.4}
         onPress={() => onCardPress?.(item)}
-        hidePrice
+        hidePrice={!showPrice}
       />
     </View>
   );

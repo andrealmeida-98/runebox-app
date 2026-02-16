@@ -11,30 +11,38 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Vibration,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BottomDrawer } from "@/components/bottom-drawer";
 import { Button } from "@/components/button";
+import { ModalDialog } from "@/components/modal";
+import { useCurrency } from "@/contexts/currency-context";
 import { useShowError, useShowSuccess } from "@/contexts/notification-context";
+import { db } from "@/db/database";
 import {
   createDeck,
+  deleteDeck,
   getDecksByUser,
   getLegendCardForDeck,
+  updateDeck,
 } from "@/db/queries/deck";
 import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { useUserId } from "@/hooks/use-user-id";
 import { Card } from "@/interfaces/card";
 import { Deck } from "@/interfaces/deck";
+import { formatPrice } from "@/utils/currency-utils";
 
 export default function DecksScreen() {
   useAndroidBackHandler(undefined, true);
 
   const { userId, loading: userLoading } = useUserId();
+  const { currency } = useCurrency();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [deckLegends, setDeckLegends] = useState<Record<string, Card | null>>(
-    {},
+    {}
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,6 +50,15 @@ export default function DecksScreen() {
   const [newDeckName, setNewDeckName] = useState("");
   const [newDeckDescription, setNewDeckDescription] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // Deck options drawer
+  const [showOptionsDrawer, setShowOptionsDrawer] = useState(false);
+  const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
+  const [showRenameInput, setShowRenameInput] = useState(false);
+  const [renameDeckName, setRenameDeckName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const showSuccess = useShowSuccess();
   const showError = useShowError();
@@ -116,6 +133,125 @@ export default function DecksScreen() {
     showError,
   ]);
 
+  // Deck options handlers
+  const handleLongPressDeck = useCallback((deck: Deck) => {
+    Vibration.vibrate(50);
+    setSelectedDeck(deck);
+    setShowOptionsDrawer(true);
+  }, []);
+
+  const handleCloseOptionsDrawer = useCallback(() => {
+    setShowOptionsDrawer(false);
+    setShowRenameInput(false);
+    setRenameDeckName("");
+    setRenaming(false);
+    setTimeout(() => setSelectedDeck(null), 300);
+  }, []);
+
+  const handleRenameOption = useCallback(() => {
+    if (selectedDeck) {
+      setRenameDeckName(selectedDeck.name);
+      setShowRenameInput(true);
+    }
+  }, [selectedDeck]);
+
+  const handleSubmitRename = useCallback(async () => {
+    if (!selectedDeck || !renameDeckName.trim()) return;
+
+    try {
+      setRenaming(true);
+      await updateDeck(selectedDeck.id, {
+        name: renameDeckName.trim(),
+      });
+      await loadDecks();
+      handleCloseOptionsDrawer();
+      showSuccess("Deck renamed successfully");
+    } catch (error) {
+      console.error("Error renaming deck:", error);
+      showError("Failed to rename deck");
+    } finally {
+      setRenaming(false);
+    }
+  }, [
+    selectedDeck,
+    renameDeckName,
+    loadDecks,
+    handleCloseOptionsDrawer,
+    showSuccess,
+    showError,
+  ]);
+
+  const handleDuplicateDeck = useCallback(async () => {
+    if (!selectedDeck || !userId) return;
+
+    try {
+      // Create a new deck with the same name + " (Copy)"
+      const newDeckId = await createDeck({
+        user_id: userId,
+        name: `${selectedDeck.name} (Copy)`,
+        description: selectedDeck.description || undefined,
+      });
+
+      // Copy all deck entries
+      await db.runAsync(
+        `
+        INSERT INTO deck_entries (id, deck_id, card_id, quantity)
+        SELECT randomblob(16), ?, card_id, quantity
+        FROM deck_entries
+        WHERE deck_id = ?
+        `,
+        [newDeckId, selectedDeck.id]
+      );
+
+      // Update the card count for the new deck
+      const { updateDeckCardCount } = await import("@/db/queries/deck");
+      await updateDeckCardCount(newDeckId);
+
+      await loadDecks();
+      handleCloseOptionsDrawer();
+      showSuccess("Deck duplicated successfully");
+    } catch (error) {
+      console.error("Error duplicating deck:", error);
+      showError("Failed to duplicate deck");
+    }
+  }, [
+    selectedDeck,
+    userId,
+    loadDecks,
+    handleCloseOptionsDrawer,
+    showSuccess,
+    showError,
+  ]);
+
+  const handleDeleteDeck = useCallback(() => {
+    if (!selectedDeck) return;
+    setShowDeleteModal(true);
+  }, [selectedDeck]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!selectedDeck) return;
+
+    try {
+      setDeleting(true);
+      await deleteDeck(selectedDeck.id);
+      await loadDecks();
+      setShowDeleteModal(false);
+      handleCloseOptionsDrawer();
+      showSuccess("Deck deleted successfully");
+    } catch (error) {
+      console.error("Error deleting deck:", error);
+      showError("Failed to delete deck");
+    } finally {
+      setDeleting(false);
+    }
+  }, [
+    selectedDeck,
+    loadDecks,
+    handleCloseOptionsDrawer,
+    showSuccess,
+    showError,
+  ]);
+
   useEffect(() => {
     if (userId) {
       loadDecks();
@@ -128,7 +264,7 @@ export default function DecksScreen() {
       if (userId) {
         loadDecks();
       }
-    }, [userId, loadDecks]),
+    }, [userId, loadDecks])
   );
 
   if (userLoading || loading) {
@@ -186,6 +322,7 @@ export default function DecksScreen() {
                   params: { deckId: item.id },
                 })
               }
+              onLongPress={() => handleLongPressDeck(item)}
             >
               <ImageBackground
                 source={
@@ -224,7 +361,7 @@ export default function DecksScreen() {
                       <View style={styles.statTextContainer}>
                         <Text style={[styles.statValue, styles.priceValue]}>
                           {/*@ts-ignore */}
-                          {(item.total_value || 0).toFixed(2)} €
+                          {formatPrice(item.total_value || 0, currency)}
                         </Text>
                         <Text style={styles.statLabel}>Value</Text>
                       </View>
@@ -295,6 +432,141 @@ export default function DecksScreen() {
           </View>
         </View>
       </BottomDrawer>
+
+      {/* Deck Options Drawer */}
+      <BottomDrawer
+        visible={showOptionsDrawer}
+        onClose={handleCloseOptionsDrawer}
+        title={showRenameInput ? "Rename Deck" : "Deck Options"}
+        minHeight={showRenameInput ? "35%" : "45%"}
+        stickyFooter={
+          showRenameInput ? (
+            <View style={styles.drawerFooter}>
+              <Button
+                variant="outline"
+                size="large"
+                onPress={() => setShowRenameInput(false)}
+                style={styles.footerButton}
+              >
+                Back
+              </Button>
+              <Button
+                variant="primary"
+                size="large"
+                icon="check"
+                onPress={handleSubmitRename}
+                disabled={!renameDeckName.trim() || renaming}
+                loading={renaming}
+                style={styles.footerButton}
+              >
+                {renaming ? "Saving..." : "Save"}
+              </Button>
+            </View>
+          ) : undefined
+        }
+      >
+        {showRenameInput ? (
+          <View style={styles.drawerContent}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Deck Name *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={renameDeckName}
+                onChangeText={setRenameDeckName}
+                placeholder="Enter deck name"
+                placeholderTextColor="#64748b"
+                maxLength={50}
+                autoFocus
+              />
+            </View>
+          </View>
+        ) : (
+          <View style={styles.optionsWrapper}>
+            <View style={styles.optionsContainer}>
+              <Pressable
+                style={styles.optionButton}
+                onPress={handleRenameOption}
+              >
+                <View style={styles.optionIconContainer}>
+                  <FontAwesome name="edit" size={20} color="#3b82f6" />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={styles.optionTitle}>Rename</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={styles.optionButton}
+                onPress={handleDuplicateDeck}
+              >
+                <View style={styles.optionIconContainer}>
+                  <FontAwesome name="copy" size={20} color="#8b5cf6" />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={styles.optionTitle}>Duplicate</Text>
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.optionButton} onPress={handleDeleteDeck}>
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    styles.deleteIconContainer,
+                  ]}
+                >
+                  <FontAwesome name="trash" size={20} color="#ef4444" />
+                </View>
+                <View style={styles.optionTextContainer}>
+                  <Text style={[styles.optionTitle, styles.deleteText]}>
+                    Delete
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+        )}{" "}
+      </BottomDrawer>
+
+      {/* Delete Confirmation Modal */}
+      <ModalDialog
+        visible={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Deck"
+        iconTitle={
+          <View style={styles.deleteIconContainer}>
+            <FontAwesome name="trash" size={20} color="#ef4444" />
+          </View>
+        }
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.modalText}>
+            Are you sure you want to delete "{selectedDeck?.name}"?
+          </Text>
+          <Text style={styles.modalWarning}>This action cannot be undone.</Text>
+
+          <View style={styles.modalButtons}>
+            <Button
+              variant="outline"
+              size="large"
+              onPress={() => setShowDeleteModal(false)}
+              style={styles.modalButton}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="large"
+              onPress={handleConfirmDelete}
+              style={{ ...styles.modalButton, ...styles.deleteButton }}
+              loading={deleting}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </View>
+        </View>
+      </ModalDialog>
 
       {/* Floating Action Button */}
       <Pressable style={styles.fab} onPress={handleCreateDeck}>
@@ -491,5 +763,68 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+  },
+  optionsWrapper: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  optionsContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  optionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+  },
+  optionIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(59, 130, 246, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  deleteIconContainer: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+  },
+  optionTextContainer: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#f1f5f9",
+  },
+  deleteText: {
+    color: "#ef4444",
+  },
+  modalContent: {
+    gap: 8,
+  },
+  modalText: {
+    fontSize: 16,
+    color: "#f1f5f9",
+    lineHeight: 24,
+  },
+  modalWarning: {
+    fontSize: 14,
+    color: "#ef4444",
+    fontWeight: "600",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    backgroundColor: "#ef4444",
+    borderColor: "#620404ff",
   },
 });

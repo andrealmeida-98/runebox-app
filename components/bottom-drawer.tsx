@@ -19,6 +19,7 @@ interface BottomDrawerProps {
   title: string;
   children: ReactNode;
   maxHeight?: string;
+  minHeight?: string;
   fullHeight?: boolean;
   headerRight?: ReactNode;
   stickyFooter?: ReactNode;
@@ -30,6 +31,7 @@ export function BottomDrawer({
   title,
   children,
   maxHeight = "75%",
+  minHeight = "50%",
   fullHeight = false,
   headerRight,
   stickyFooter,
@@ -156,7 +158,7 @@ export function BottomDrawer({
             styles.drawer,
             {
               maxHeight: (fullHeight ? "90%" : maxHeight) as any,
-              minHeight: fullHeight ? "90%" : "50%",
+              minHeight: minHeight ? minHeight : ("50%" as any),
             },
             {
               transform: [{ translateY: drawerTranslateY }],

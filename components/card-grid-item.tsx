@@ -1,4 +1,6 @@
+import { useCurrency } from "@/contexts/currency-context";
 import { Card, CardType } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -19,6 +21,7 @@ export function CardGridItem({
   hidePrice = false,
   onPress,
 }: CardGridItemProps) {
+  const { currency } = useCurrency();
   const { price = 0, price_foil = 0 } = card;
   const cardPrice = price ? price : price_foil;
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -64,7 +67,9 @@ export function CardGridItem({
         {/* Price Badge */}
         {!hidePrice && cardPrice && cardPrice > 0 ? (
           <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>{`$${cardPrice.toFixed(2)}`}</Text>
+            <Text style={styles.priceText}>
+              {formatPrice(cardPrice, currency)}
+            </Text>
           </View>
         ) : null}
 
@@ -80,7 +85,9 @@ export function CardGridItem({
       <Text style={styles.cardName} numberOfLines={1}>
         {card.name}
       </Text>
-      <Text style={styles.cardSet}>{`${card.set_abv} • ${card.rarity}`}</Text>
+      <Text style={styles.cardSet}>{`${card.set_abv} • ${
+        card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)
+      }`}</Text>
     </Pressable>
   );
 }

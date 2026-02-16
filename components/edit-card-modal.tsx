@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { Colors } from "@/constants/theme";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 import { getCardReprintsByName } from "@/db/queries/cards";
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/db/queries/collection";
 import { replaceCardInDeck, updateCardQuantityInDeck } from "@/db/queries/deck";
 import { Card, CardType } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 import { ModalDialog } from "./modal";
 import { TextInput } from "./text-input";
 
@@ -45,6 +47,7 @@ export function EditCardModal({
   onNotification,
 }: EditCardModalProps) {
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const [quantity, setQuantity] = useState(card.quantity?.toString() || "1");
   const [reprints, setReprints] = useState<Card[]>([]);
   const [selectedCardId, setSelectedCardId] = useState(card.id);
@@ -231,7 +234,10 @@ export function EditCardModal({
                       {reprint.set_abv} • {reprint.id}
                     </Text>
                     <Text style={styles.reprintPrice}>
-                      €{(reprint.price || reprint.price_foil || 0).toFixed(2)}
+                      {formatPrice(
+                        reprint.price || reprint.price_foil || 0,
+                        currency
+                      )}
                     </Text>
                   </View>
                 </Pressable>

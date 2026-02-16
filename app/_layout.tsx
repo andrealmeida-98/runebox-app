@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { Notification } from "@/components/notification";
+import { CurrencyProvider } from "@/contexts/currency-context";
 import {
   NotificationProvider,
   useNotification,
@@ -52,9 +53,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <NotificationProvider>
-        <RootLayoutNav />
-      </NotificationProvider>
+      <CurrencyProvider>
+        <NotificationProvider>
+          <RootLayoutNav />
+        </NotificationProvider>
+      </CurrencyProvider>
     </ThemeProvider>
   );
 }

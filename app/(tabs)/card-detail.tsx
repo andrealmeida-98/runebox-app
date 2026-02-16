@@ -36,10 +36,12 @@ import {
   RbRuneRainbowIcon,
 } from "@/assets/icons";
 import { Colors } from "@/constants/theme";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 import { db } from "@/db/database";
 import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardRarity, CardType } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -50,6 +52,7 @@ const MAX_PANEL_HEIGHT = SCREEN_HEIGHT * 0.45;
 
 export default function CardDetailScreen() {
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const { cardId, collectionId, cardIds } = useLocalSearchParams();
   const cardIdStr = typeof cardId === "string" ? cardId : "";
   const cardIdsStr = typeof cardIds === "string" ? cardIds : "";
@@ -71,7 +74,7 @@ export default function CardDetailScreen() {
       const placeholders = orderedCardIds.map(() => "?").join(",");
       const cardsData = await db.getAllAsync(
         `SELECT * FROM cards WHERE id IN (${placeholders})`,
-        orderedCardIds,
+        orderedCardIds
       );
 
       // Sort cards in the same order as the IDs
@@ -107,7 +110,7 @@ export default function CardDetailScreen() {
       () => {
         handleBack();
         return true;
-      },
+      }
     );
 
     return () => backHandler.remove();
@@ -144,7 +147,7 @@ export default function CardDetailScreen() {
           useNativeDriver: false,
         }).start();
       },
-    }),
+    })
   ).current;
 
   const { width: windowWidth } = useWindowDimensions();
@@ -155,11 +158,11 @@ export default function CardDetailScreen() {
     let processed = text
       .replace(
         /:rb_(energy_\d+|exhaust|might):/g,
-        '<span class="icon" data-icon="rb_$1"></span>',
+        '<span class="icon" data-icon="rb_$1"></span>'
       )
       .replace(
         /:rb_rune_(calm|chaos|fury|mind|order|body|rainbow):/g,
-        '<span class="icon" data-icon="rb_rune_$1"></span>',
+        '<span class="icon" data-icon="rb_rune_$1"></span>'
       )
       .replace(/\[([^\]]+)\]/g, "<strong>$1</strong>")
       .replace(/<ul>(<br\s*\/?>)+/g, "<ul>")
@@ -262,8 +265,8 @@ export default function CardDetailScreen() {
     activeCard.price && activeCard.price > 0
       ? activeCard.price
       : activeCard.price_foil && activeCard.price_foil > 0
-        ? activeCard.price_foil
-        : 0;
+      ? activeCard.price_foil
+      : 0;
 
   const styles = createStyles(theme);
   console.log("Rendering CardDetailScreen for card:", cardIds);
@@ -352,7 +355,7 @@ export default function CardDetailScreen() {
                   <Text style={styles.priceLabel}>MARKET PRICE</Text>
                   <View style={styles.priceWithChange}>
                     <Text style={styles.priceValue}>
-                      €{cardPrice.toFixed(2)}
+                      {formatPrice(cardPrice, currency)}
                     </Text>
                     {activeCard.price_change !== undefined && (
                       <View

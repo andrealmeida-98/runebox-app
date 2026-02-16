@@ -18,6 +18,7 @@ import { CardCollectionPreviewModal } from "@/components/card-collection-preview
 import { ModalDialog } from "@/components/modal";
 import { SearchInput } from "@/components/search-input";
 import { Colors } from "@/constants/theme";
+import { useCurrency } from "@/contexts/currency-context";
 import {
   useShowError,
   useShowInfo,
@@ -36,6 +37,7 @@ import {
 import { useAndroidBackHandler } from "@/hooks/use-android-back-handler";
 import { Card, CardDomain, CardType } from "@/interfaces/card";
 import { Deck } from "@/interfaces/deck";
+import { formatPrice } from "@/utils/currency-utils";
 import { getThemeColors } from "@/utils/theme-utils";
 
 export default function DeckDetailScreen() {
@@ -43,6 +45,7 @@ export default function DeckDetailScreen() {
   const { deckId } = useLocalSearchParams();
   const deckIdStr = typeof deckId === "string" ? deckId : "";
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const colors = Colors[theme];
 
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -143,7 +146,7 @@ export default function DeckDetailScreen() {
 
       if (result.errors.length > 0) {
         showError(
-          `Success: ${result.totalQuantity} card(s), Failed: ${result.failed}. Check console for errors.`,
+          `Success: ${result.totalQuantity} card(s), Failed: ${result.failed}. Check console for errors.`
         );
         console.log("Import errors:", result.errors.slice(0, 10).join("\n"));
       } else {
@@ -168,8 +171,8 @@ export default function DeckDetailScreen() {
           prevCards.map((item) =>
             item.card.id === cardId
               ? { ...item, quantity: item.quantity + 1 }
-              : item,
-          ),
+              : item
+          )
         );
 
         // Update in database (fire and forget - assume success)
@@ -178,7 +181,7 @@ export default function DeckDetailScreen() {
             console.error("Error increasing quantity:", error);
             // Revert the optimistic update on error
             loadDeckData();
-          },
+          }
         );
 
         showSuccess(`Added 1 ${cardName}`);
@@ -187,7 +190,7 @@ export default function DeckDetailScreen() {
         showError("Failed to update card quantity");
       }
     },
-    [deckIdStr, loadDeckData, showSuccess, showError],
+    [deckIdStr, loadDeckData, showSuccess, showError]
   );
 
   const handleDecreaseQuantity = useCallback(
@@ -198,7 +201,7 @@ export default function DeckDetailScreen() {
         if (newQuantity <= 0) {
           // Optimistically remove the card from UI
           setDeckCards((prevCards) =>
-            prevCards.filter((item) => item.card.id !== cardId),
+            prevCards.filter((item) => item.card.id !== cardId)
           );
 
           // Update in database (fire and forget - assume success)
@@ -215,8 +218,8 @@ export default function DeckDetailScreen() {
             prevCards.map((item) =>
               item.card.id === cardId
                 ? { ...item, quantity: item.quantity - 1 }
-                : item,
-            ),
+                : item
+            )
           );
 
           // Update in database (fire and forget - assume success)
@@ -225,7 +228,7 @@ export default function DeckDetailScreen() {
               console.error("Error decreasing quantity:", error);
               // Revert the optimistic update on error
               loadDeckData();
-            },
+            }
           );
 
           showSuccess(`Removed 1 ${cardName}`);
@@ -235,7 +238,7 @@ export default function DeckDetailScreen() {
         showError("Failed to update card quantity");
       }
     },
-    [deckIdStr, loadDeckData, showSuccess, showError],
+    [deckIdStr, loadDeckData, showSuccess, showError]
   );
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export default function DeckDetailScreen() {
     if (showCardPreview && selectedCard) {
       // Find the updated card in the new deckCards
       const updatedCard = deckCards.find(
-        (item) => item.card.id === selectedCard.card.id,
+        (item) => item.card.id === selectedCard.card.id
       );
       if (updatedCard) {
         setSelectedCard(updatedCard);
@@ -353,7 +356,10 @@ export default function DeckDetailScreen() {
           {(item.card.price || item.card.price_foil) && (
             <View style={styles.cardPriceBadge}>
               <Text style={[styles.cardPriceText, { color: colors.success }]}>
-                {(item.card.price || item.card.price_foil || 0).toFixed(2)}€
+                {formatPrice(
+                  item.card.price || item.card.price_foil || 0,
+                  currency
+                )}
               </Text>
             </View>
           )}
@@ -400,7 +406,7 @@ export default function DeckDetailScreen() {
               handleDecreaseQuantity(
                 item.card.id,
                 item.quantity,
-                item.card.name,
+                item.card.name
               )
             }
           >
@@ -423,7 +429,7 @@ export default function DeckDetailScreen() {
               handleIncreaseQuantity(
                 item.card.id,
                 item.quantity,
-                item.card.name,
+                item.card.name
               )
             }
           >
@@ -438,7 +444,7 @@ export default function DeckDetailScreen() {
 
   const renderSection = (
     title: string,
-    cards: { card: Card; quantity: number }[],
+    cards: { card: Card; quantity: number }[]
   ) => {
     if (cards.length === 0) return null;
 
@@ -446,7 +452,7 @@ export default function DeckDetailScreen() {
     const totalPrice = cards.reduce(
       (sum, item) =>
         sum + (item.card.price || item.card.price_foil || 0) * item.quantity,
-      0,
+      0
     );
 
     return (
@@ -471,7 +477,7 @@ export default function DeckDetailScreen() {
             <Text
               style={[styles.sectionStatsTextBottom, { color: colors.icon }]}
             >
-              {totalPrice.toFixed(2)}€
+              {formatPrice(totalPrice, currency)}
             </Text>
           </View>
         </View>
@@ -623,16 +629,16 @@ export default function DeckDetailScreen() {
                   Deck Value
                 </Text>
                 <Text style={[styles.statCardValue, { color: colors.tint }]}>
-                  {deckCards
-                    .reduce(
+                  {formatPrice(
+                    deckCards.reduce(
                       (sum, item) =>
                         sum +
                         (item.card.price || item.card.price_foil || 0) *
                           item.quantity,
-                      0,
-                    )
-                    .toFixed(2)}
-                  €
+                      0
+                    ),
+                    currency
+                  )}
                 </Text>
                 <Text style={[styles.statCardSubtext, { color: colors.icon }]}>
                   Total cards:{" "}
@@ -662,8 +668,8 @@ export default function DeckDetailScreen() {
                       ...Array.from({ length: 13 }, (_, i) =>
                         deckCards
                           .filter((item) => (item.card.energy || 0) === i)
-                          .reduce((sum, item) => sum + item.quantity, 0),
-                      ),
+                          .reduce((sum, item) => sum + item.quantity, 0)
+                      )
                     );
                     const height =
                       maxCards > 0 ? (cardsAtCost / maxCards) * 100 * 0.8 : 0;
@@ -721,11 +727,11 @@ export default function DeckDetailScreen() {
                   CardDomain.BODY,
                 ].map((domain) => {
                   const domainCards = deckCards.filter((item) =>
-                    item.card.domain?.includes(domain),
+                    item.card.domain?.includes(domain)
                   );
                   const count = domainCards.reduce(
                     (sum, item) => sum + item.quantity,
-                    0,
+                    0
                   );
                   if (count === 0) return null;
                   return (
@@ -771,24 +777,21 @@ export default function DeckDetailScreen() {
                   Set Distribution
                 </Text>
                 {Object.entries(
-                  deckCards.reduce(
-                    (acc, item) => {
-                      const setName = item.card.set_name || "Unknown";
-                      const setAbv = item.card.set_abv || "???";
-                      const key = `${setName}|${setAbv}`;
-                      if (!acc[key]) acc[key] = 0;
-                      acc[key] += item.quantity;
-                      return acc;
-                    },
-                    {} as Record<string, number>,
-                  ),
+                  deckCards.reduce((acc, item) => {
+                    const setName = item.card.set_name || "Unknown";
+                    const setAbv = item.card.set_abv || "???";
+                    const key = `${setName}|${setAbv}`;
+                    if (!acc[key]) acc[key] = 0;
+                    acc[key] += item.quantity;
+                    return acc;
+                  }, {} as Record<string, number>)
                 )
                   .sort(([, a], [, b]) => b - a)
                   .map(([key, count]) => {
                     const [setName, setAbv] = key.split("|");
                     const total = deckCards.reduce(
                       (sum, item) => sum + item.quantity,
-                      0,
+                      0
                     );
                     const percentage = ((count / total) * 100).toFixed(1);
                     return (
@@ -1054,7 +1057,7 @@ export default function DeckDetailScreen() {
             showSuccess(`Removed ${card.name} from deck`);
             // Optimistically update UI
             setDeckCards((prevCards) =>
-              prevCards.filter((item) => item.card.id !== card.id),
+              prevCards.filter((item) => item.card.id !== card.id)
             );
             setShowCardPreview(false);
           } catch (error) {

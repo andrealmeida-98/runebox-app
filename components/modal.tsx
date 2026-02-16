@@ -16,6 +16,7 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   maxHeight?: number | string;
+  iconTitle?: React.ReactNode;
 }
 
 export function ModalDialog({
@@ -24,6 +25,7 @@ export function ModalDialog({
   title,
   children,
   maxHeight = "80%",
+  iconTitle,
 }: ModalProps) {
   const maxHeightValue =
     typeof maxHeight === "string" ? maxHeight : `${maxHeight}px`;
@@ -45,7 +47,10 @@ export function ModalDialog({
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {iconTitle && <View style={{ marginRight: 8 }}>{iconTitle}</View>}
+              <Text style={styles.title}>{title}</Text>
+            </View>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <FontAwesome name="times" size={24} color="#94a3b8" />
             </Pressable>

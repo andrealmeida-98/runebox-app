@@ -1,4 +1,5 @@
 import { Button } from "@/components/button";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 import {
   checkBackgroundSyncStatus,
@@ -20,6 +21,7 @@ import {
 
 export default function HomeScreen() {
   const { theme, toggleTheme } = useTheme();
+  const { currency, setCurrency } = useCurrency();
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [syncing, setSyncing] = useState(false);
@@ -303,6 +305,82 @@ export default function HomeScreen() {
           {syncing ? "Syncing..." : "Sync Now"}
         </Button>
       </View>
+
+      {/* Currency Settings Card */}
+      <View
+        style={[
+          styles.syncCard,
+          { backgroundColor: cardBackground, borderColor, borderWidth: 1 },
+        ]}
+      >
+        <View style={styles.syncHeader}>
+          <View style={styles.syncTitleContainer}>
+            <Ionicons name="cash-outline" size={24} color={textColor} />
+            <Text style={[styles.syncTitle, { color: textColor }]}>
+              Currency
+            </Text>
+          </View>
+        </View>
+
+        <Text
+          style={[
+            styles.infoLabel,
+            { color: secondaryTextColor, marginBottom: 12 },
+          ]}
+        >
+          Choose your preferred currency for displaying card prices
+        </Text>
+
+        <View style={styles.currencyOptions}>
+          <TouchableOpacity
+            style={[
+              styles.currencyOption,
+              {
+                backgroundColor:
+                  currency === "USD" ? "#22c55e" : inputBackground,
+                borderColor: currency === "USD" ? "#22c55e" : borderColor,
+              },
+            ]}
+            onPress={() => setCurrency("USD")}
+          >
+            <View style={styles.radioButton}>
+              {currency === "USD" && <View style={styles.radioButtonInner} />}
+            </View>
+            <Text
+              style={[
+                styles.currencyOptionText,
+                { color: currency === "USD" ? "#fff" : textColor },
+              ]}
+            >
+              Dollar ($)
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.currencyOption,
+              {
+                backgroundColor:
+                  currency === "EUR" ? "#22c55e" : inputBackground,
+                borderColor: currency === "EUR" ? "#22c55e" : borderColor,
+              },
+            ]}
+            onPress={() => setCurrency("EUR")}
+          >
+            <View style={styles.radioButton}>
+              {currency === "EUR" && <View style={styles.radioButtonInner} />}
+            </View>
+            <Text
+              style={[
+                styles.currencyOptionText,
+                { color: currency === "EUR" ? "#fff" : textColor },
+              ]}
+            >
+              Euro (€)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -421,5 +499,37 @@ const styles = StyleSheet.create({
     color: "#ccc",
     marginBottom: 8,
     lineHeight: 20,
+  },
+  currencyOptions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  currencyOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+  },
+  currencyOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#fff",
   },
 });

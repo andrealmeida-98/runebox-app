@@ -14,8 +14,10 @@ import {
 import Carousel from "react-native-reanimated-carousel";
 
 import { Colors } from "@/constants/theme";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTheme } from "@/contexts/theme-context";
 import { Card, CardType } from "@/interfaces/card";
+import { formatPrice } from "@/utils/currency-utils";
 import { EditCardModal } from "./edit-card-modal";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -38,7 +40,7 @@ interface CardCollectionPreviewModalProps {
   onRemove?: (card: Card & { quantity?: number }) => void;
   onNotification?: (
     message: string,
-    severity: "success" | "error" | "info",
+    severity: "success" | "error" | "info"
   ) => void;
   onIndexChange?: (index: number) => void;
 }
@@ -58,6 +60,7 @@ export function CardCollectionPreviewModal({
   onIndexChange,
 }: CardCollectionPreviewModalProps) {
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -77,7 +80,7 @@ export function CardCollectionPreviewModal({
       () => {
         onClose();
         return true;
-      },
+      }
     );
 
     return () => backHandler.remove();
@@ -89,8 +92,8 @@ export function CardCollectionPreviewModal({
     activeCard.price && activeCard.price > 0
       ? activeCard.price
       : activeCard.price_foil && activeCard.price_foil > 0
-        ? activeCard.price_foil
-        : 0;
+      ? activeCard.price_foil
+      : 0;
 
   const styles = createStyles(theme);
 
@@ -157,8 +160,8 @@ export function CardCollectionPreviewModal({
                       isUpdating && index === activeIndex
                         ? require("@/assets/images/back-image.png")
                         : item.image_url
-                          ? { uri: item.image_url }
-                          : require("@/assets/images/back-image.png")
+                        ? { uri: item.image_url }
+                        : require("@/assets/images/back-image.png")
                     }
                     style={[
                       styles.cardImage,
@@ -180,75 +183,75 @@ export function CardCollectionPreviewModal({
 
         {/* Action Buttons - Positioned above Card Details Panel */}
         <View style={styles.buttonGroup}>
-            {onEdit && collectionId && (
-              <Pressable
-                style={[styles.groupButton, styles.groupButtonLeft]}
-                onPress={() => {
-                  setShowEditModal(true);
-                }}
-              >
-                <FontAwesome name="edit" size={18} color="#fff" />
-                <Text style={styles.groupButtonText}>Edit</Text>
-              </Pressable>
-            )}
-            {onAddToCollection && (
-              <Pressable
-                style={styles.groupButton}
-                onPress={() => {
-                  onAddToCollection(activeCard);
-                  onClose();
-                }}
-              >
-                <FontAwesome name="plus" size={18} color="#fff" />
-                <Text style={styles.groupButtonText}>Add to Deck</Text>
-              </Pressable>
-            )}
-            {onViewDetails && (
-              <Pressable
-                style={styles.groupButton}
-                onPress={() => {
-                  onViewDetails(activeCard);
-                  onClose();
-                }}
-              >
-                <FontAwesome name="info-circle" size={18} color="#fff" />
-                <Text style={styles.groupButtonText}>Details</Text>
-              </Pressable>
-            )}
-            {onRemove && (
-              <Pressable
-                style={[styles.groupButton, styles.groupButtonDanger]}
-                onPress={() => {
-                  onRemove(activeCard);
-                  onClose();
-                }}
-              >
-                <FontAwesome name="trash" size={18} color="#fff" />
-                <Text style={styles.groupButtonText}>Remove</Text>
-              </Pressable>
-            )}
+          {onEdit && collectionId && (
             <Pressable
-              style={[
-                styles.groupButton,
-                styles.groupButtonRight,
-                styles.groupButtonContrary,
-              ]}
-              onPress={onClose}
+              style={[styles.groupButton, styles.groupButtonLeft]}
+              onPress={() => {
+                setShowEditModal(true);
+              }}
             >
-              <FontAwesome
-                name="times"
-                size={18}
-                color="rgba(59, 130, 246, 0.9)"
-              />
-              <Text
-                style={[
-                  styles.groupButtonText,
-                  { color: "rgba(59, 130, 246, 0.9)" },
-                ]}
-              >
-                Close
-              </Text>
+              <FontAwesome name="edit" size={18} color="#fff" />
+              <Text style={styles.groupButtonText}>Edit</Text>
             </Pressable>
+          )}
+          {onAddToCollection && (
+            <Pressable
+              style={styles.groupButton}
+              onPress={() => {
+                onAddToCollection(activeCard);
+                onClose();
+              }}
+            >
+              <FontAwesome name="plus" size={18} color="#fff" />
+              <Text style={styles.groupButtonText}>Add to Deck</Text>
+            </Pressable>
+          )}
+          {onViewDetails && (
+            <Pressable
+              style={styles.groupButton}
+              onPress={() => {
+                onViewDetails(activeCard);
+                onClose();
+              }}
+            >
+              <FontAwesome name="info-circle" size={18} color="#fff" />
+              <Text style={styles.groupButtonText}>Details</Text>
+            </Pressable>
+          )}
+          {onRemove && (
+            <Pressable
+              style={[styles.groupButton, styles.groupButtonDanger]}
+              onPress={() => {
+                onRemove(activeCard);
+                onClose();
+              }}
+            >
+              <FontAwesome name="trash" size={18} color="#fff" />
+              <Text style={styles.groupButtonText}>Remove</Text>
+            </Pressable>
+          )}
+          <Pressable
+            style={[
+              styles.groupButton,
+              styles.groupButtonRight,
+              styles.groupButtonContrary,
+            ]}
+            onPress={onClose}
+          >
+            <FontAwesome
+              name="times"
+              size={18}
+              color="rgba(59, 130, 246, 0.9)"
+            />
+            <Text
+              style={[
+                styles.groupButtonText,
+                { color: "rgba(59, 130, 246, 0.9)" },
+              ]}
+            >
+              Close
+            </Text>
+          </Pressable>
         </View>
 
         {/* Card Details Panel */}
@@ -266,7 +269,9 @@ export function CardCollectionPreviewModal({
                 </Text>
               </View>
               <View style={styles.infoRight}>
-                <Text style={styles.priceValue}>{cardPrice.toFixed(2)} €</Text>
+                <Text style={styles.priceValue}>
+                  {formatPrice(cardPrice, currency)}
+                </Text>
                 {activeCard.price_change !== undefined && (
                   <View style={styles.priceChangeRow}>
                     <FontAwesome
